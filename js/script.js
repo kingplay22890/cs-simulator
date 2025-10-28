@@ -72,12 +72,13 @@ async function loadSavedTeams() {
 async function saveTeam(teamNum) {
     const teamName = document.getElementById(`team${teamNum}Name`).value.trim() || `Team ${teamNum === 1 ? 'A' : 'B'}`;
     const logoUrl = document.getElementById(`team${teamNum}LogoUrl`).value.trim();
-    // собираем игроков
+    // собираем игроков (включая фото)
     const players = [];
     document.querySelectorAll(`#team${teamNum}Players > div`).forEach(div => {
         const name = div.children[0].value.trim();
         const rating = parseFloat(div.children[1].value);
-        if (name && !isNaN(rating)) players.push({ name, rating });
+        const photoUrl = (div.children[2]?.value || '').trim();
+        if (name && !isNaN(rating)) players.push({ name, rating, photoUrl });
     });
 
     if (players.length !== 5) {
@@ -89,7 +90,10 @@ async function saveTeam(teamNum) {
         const currentTeams = await readSavedTeams();
         const existing = currentTeams.find(t => t.name === teamName);
         const teamData = existing ? { ...existing, logoUrl: logoUrl || existing.logoUrl || '', players } : { name: teamName, logoUrl: logoUrl || '', players, rating: 1500, history: [] };
+        console.log('Saving team to Supabase:', teamData);
         await window.csApi.upsertTeam(teamData);
+        const saved = await window.csApi.getTeamByName(teamName);
+        console.log('Saved team from Supabase:', saved);
     } else {
         const savedTeams = await readSavedTeams();
         const existingIndex = savedTeams.findIndex(t => t.name === teamName);
@@ -126,11 +130,13 @@ async function loadTeam(teamNum) {
     const playerContainer = document.getElementById(`team${teamNum}Players`);
     playerContainer.querySelectorAll('div').forEach((div, index) => {
         if (team.players[index]) {
-            div.children[0].value = team.players[index].name;
-            div.children[1].value = team.players[index].rating;
+            div.children[0].value = team.players[index].name || '';
+            div.children[1].value = team.players[index].rating ?? '';
+            if (div.children[2]) div.children[2].value = team.players[index].photoUrl || '';
         } else {
             div.children[0].value = '';
             div.children[1].value = '';
+            if (div.children[2]) div.children[2].value = '';
         }
     });
 }
@@ -239,10 +245,14 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
     t1.history = [entry1, ...t1.history];
     t2.history = [entry2, ...t2.history];
 
-    // Сохраняем обратно
-    savedTeams[idx1] = t1;
-    savedTeams[idx2] = t2;
-    await writeSavedTeams(savedTeams);
+    // Сохраняем обратно только изменённые команды, чтобы не перезаписывать игроков
+    if (window.csApi) {
+        await window.csApi.upsertTeamsBulk([t1, t2]);
+    } else {
+        savedTeams[idx1] = t1;
+        savedTeams[idx2] = t2;
+        await writeSavedTeams(savedTeams);
+    }
 
     console.log('Ratings updated and history appended for', team1Name, team2Name);
 }
@@ -432,12 +442,14 @@ async function startLiveMatch() {
   document.querySelectorAll('#team1Players > div').forEach(div => {
     const name = div.children[0].value.trim();
     const rating = parseFloat(div.children[1].value);
-    if (name && !isNaN(rating)) team1Players.push({ name, rating });
+    const photoUrl = (div.children[2]?.value || '').trim();
+    if (name && !isNaN(rating)) team1Players.push({ name, rating, photoUrl });
   });
   document.querySelectorAll('#team2Players > div').forEach(div => {
     const name = div.children[0].value.trim();
     const rating = parseFloat(div.children[1].value);
-    if (name && !isNaN(rating)) team2Players.push({ name, rating });
+    const photoUrl = (div.children[2]?.value || '').trim();
+    if (name && !isNaN(rating)) team2Players.push({ name, rating, photoUrl });
   });
 
   if (team1Players.length !== 5 || team2Players.length !== 5) {

@@ -135,7 +135,7 @@ async function showTeamProfile() {
     const rankEl = document.getElementById('teamRank');
     if (rankEl) rankEl.textContent = `#${rank}`;
     const ratingEl = document.getElementById('teamRating');
-    if (ratingEl) ratingEl.textContent = Math.round(team.rating);
+    if (ratingEl) ratingEl.textContent = team.rating; // без округления
     const placeEl = document.getElementById('teamPlace');
     if (placeEl) placeEl.textContent = `#${rank}`;
 
@@ -152,18 +152,31 @@ async function showTeamProfile() {
 
     // Состав
     const roster = document.getElementById('roster');
+    const banner = document.getElementById('playerBanner');
     if (roster) {
       roster.innerHTML = '';
       if (team.players && team.players.length > 0) {
+        if (banner) banner.innerHTML = '';
         team.players.forEach(p => {
+          // Элемент состава (крупнее)
           const div = document.createElement('div');
-          div.className = 'flex justify-between py-1';
-          const pr = !isNaN(parseFloat(p.rating)) ? parseFloat(p.rating).toFixed(1) : '0.0';
-          div.innerHTML = `<span>${p.name}</span><span class="text-gray-400">${pr}</span>`;
+          div.className = 'flex items-center justify-between py-2';
+          const pr = !isNaN(parseFloat(p.rating)) ? String(parseFloat(p.rating)) : '0.0';
+          const img = p.photoUrl ? `<img src="${p.photoUrl}" alt="${p.name}" class="w-14 h-14 rounded object-cover mr-3" onerror="this.style.display='none'">` : '';
+          div.innerHTML = `<div class="flex items-center">${img}<span class="text-lg">${p.name}</span></div><span class="text-gray-400">${pr}</span>`;
           roster.appendChild(div);
+
+          // Элемент баннера (очень крупный, как на HLTV)
+          if (banner && p.photoUrl) {
+            const b = document.createElement('div');
+            b.className = 'flex flex-col items-center';
+            b.innerHTML = `<img src="${p.photoUrl}" alt="${p.name}" class="h-36 w-auto object-contain" onerror="this.style.display='none'"><span class="text-sm mt-1">${p.name}</span>`;
+            banner.appendChild(b);
+          }
         });
       } else {
         roster.innerHTML = '<div class="text-gray-400 text-center py-2">Нет данных о составе</div>';
+        if (banner) banner.innerHTML = '';
       }
     }
 
@@ -188,6 +201,8 @@ async function showTeamProfile() {
         });
       }
     }
+
+    // График отключён — удалён код построения, чтобы не нагружать страницу
   } catch (e) {
     console.error('Error rendering team profile:', e);
   }

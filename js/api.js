@@ -23,13 +23,20 @@
   }
 
   async function fetchTeams(){
-    const { data, error } = await client.from('teams').select('*');
+    const { data, error } = await client
+      .from('teams')
+      .select('name,logo_url,rating,players,history')
+      .order('rating', { ascending: false });
     if (error) throw error;
     return (data || []).map(normalizeTeam);
   }
 
   async function getTeamByName(name){
-    const { data, error } = await client.from('teams').select('*').eq('name', name).maybeSingle();
+    const { data, error } = await client
+      .from('teams')
+      .select('name,logo_url,rating,players,history')
+      .eq('name', name)
+      .maybeSingle();
     if (error) throw error;
     return data ? normalizeTeam(data) : null;
   }
