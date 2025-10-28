@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Профиль команды</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-6">
+
+<div class="max-w-4xl mx-auto">
+
+  <!-- Select остаётся сверху -->
+  <select id="teamSelect" class="w-full p-3 bg-gray-800 rounded mb-6 text-lg">
+    <option value="">Выберите команду</option>
+  </select>
+
+  <!-- Оборачиваем карточку профиля + история в #profile (будет скрыта по умолчанию) -->
+  <div id="profile" class="hidden">
+    <div class="bg-gray-800 rounded-xl p-6 mb-6">
+      <div class="flex items-center gap-4 mb-4">
+        <img id="teamLogo" class="w-16 h-16 rounded" src="https://via.placeholder.com/64" alt="logo">
+        <div>
+          <h1 id="teamName" class="text-2xl font-bold"></h1>
+          <p class="text-blue-400"><span id="teamRank"></span> • <span id="teamRating"></span></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 text-center">
+        <div class="bg-gray-700 p-4 rounded">
+          <p class="text-sm text-gray-400">Рейтинг (5 матчей)</p>
+          <p id="ratingChange" class="text-2xl font-bold">+0</p>
+        </div>
+        <div class="bg-gray-700 p-4 rounded">
+          <p class="text-sm text-gray-400">Место</p>
+          <p class="text-2xl font-bold"><span id="teamPlace">_</span></p>
+        </div>
+        <div class="bg-gray-700 p-4 rounded">
+          <p class="text-sm text-gray-400">Win Rate (<span id="totalMatches">0</span> матчей)</p>
+          <p id="winRate" class="text-2xl font-bold">0%</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-gray-800 rounded-xl p-6 mb-6">
+      <h2 class="text-xl font-bold mb-4">Состав</h2>
+      <div id="roster" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-gray-800 rounded-xl p-6">
+      <h2 class="text-xl font-bold mb-4">История матчей</h2>
+      <table class="w-full text-sm">
+        <thead class="bg-gray-700">
+          <tr>
+            <th class="p-2 text-left">Дата</th>
+            <th class="p-2 text-left">Соперник</th>
+            <th class="p-2 text-left">Результат</th>
+            <th class="p-2 text-left">Счёт</th>
+            <th class="p-2 text-left">Δ Рейтинг</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Кнопка отладки -->
+  <div class="mt-4">
+    <button onclick="debugTeamData()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded transition">
+      Отладка
+    </button>
+  </div>
+
+</div>
+
+<script src="js/team-profile.js"></script>
+</body>
+</html>
