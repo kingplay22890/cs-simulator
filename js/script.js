@@ -17,12 +17,14 @@ const hltvTeams = [
 
 const maps = ['Mirage', 'Inferno', 'Dust2', 'Nuke', 'Vertigo', 'Ancient', 'Anubis'];
 
-// ---------- Utilities ----------
-function readSavedTeams() {
+// ---------- Utilities (Supabase-aware) ----------
+async function readSavedTeams() {
     try {
+        if (window.csApi) {
+            return await window.csApi.fetchTeams();
+        }
         const raw = localStorage.getItem('cs_teams');
         const parsed = JSON.parse(raw || '[]');
-        // гарантия структуры
         return parsed.map(t => ({
             name: t.name,
             logoUrl: t.logoUrl || '',
@@ -35,13 +37,17 @@ function readSavedTeams() {
         return [];
     }
 }
-function writeSavedTeams(arr) {
-    localStorage.setItem('cs_teams', JSON.stringify(arr));
+async function writeSavedTeams(arr) {
+    if (window.csApi) {
+        await window.csApi.upsertTeamsBulk(arr || []);
+    } else {
+        localStorage.setItem('cs_teams', JSON.stringify(arr));
+    }
 }
 
 // ---------- Load/Save Teams ----------
-function loadSavedTeams() {
-    let savedTeams = readSavedTeams();
+async function loadSavedTeams() {
+    let savedTeams = await readSavedTeams();
 
     const team1Select = document.getElementById('team1Load');
     const team2Select = document.getElementById('team2Load');
@@ -58,12 +64,12 @@ function loadSavedTeams() {
         if (team2Select) team2Select.insertAdjacentHTML('beforeend', optionHtml);
     });
 
-    // Сохраняем гарантированно корректную структуру
-    writeSavedTeams(savedTeams);
+    // Для локального режима синхронизируем структуру
+    if (!window.csApi) await writeSavedTeams(savedTeams);
 }
 
 // Сохранение команды: НЕ стираем history или rating, если команда существует
-function saveTeam(teamNum) {
+async function saveTeam(teamNum) {
     const teamName = document.getElementById(`team${teamNum}Name`).value.trim() || `Team ${teamNum === 1 ? 'A' : 'B'}`;
     const logoUrl = document.getElementById(`team${teamNum}LogoUrl`).value.trim();
     // собираем игроков
@@ -79,44 +85,36 @@ function saveTeam(teamNum) {
         return;
     }
 
-    const savedTeams = readSavedTeams();
-    const existingIndex = savedTeams.findIndex(t => t.name === teamName);
-
-    let teamData;
-    if (existingIndex !== -1) {
-        // берем существующие rating и историю
-        const existing = savedTeams[existingIndex];
-        teamData = {
-            ...existing,
-            name: teamName,
-            logoUrl: logoUrl || existing.logoUrl || '',
-            players,
-            // rating оставляем как есть
-        };
-        savedTeams[existingIndex] = teamData;
+    if (window.csApi) {
+        const currentTeams = await readSavedTeams();
+        const existing = currentTeams.find(t => t.name === teamName);
+        const teamData = existing ? { ...existing, logoUrl: logoUrl || existing.logoUrl || '', players } : { name: teamName, logoUrl: logoUrl || '', players, rating: 1500, history: [] };
+        await window.csApi.upsertTeam(teamData);
     } else {
-        teamData = {
-            name: teamName,
-            logoUrl: logoUrl || '',
-            players,
-            rating: 1500,
-            history: []
-        };
-        savedTeams.push(teamData);
+        const savedTeams = await readSavedTeams();
+        const existingIndex = savedTeams.findIndex(t => t.name === teamName);
+        let teamData;
+        if (existingIndex !== -1) {
+            const existing = savedTeams[existingIndex];
+            teamData = { ...existing, name: teamName, logoUrl: logoUrl || existing.logoUrl || '', players };
+            savedTeams[existingIndex] = teamData;
+        } else {
+            teamData = { name: teamName, logoUrl: logoUrl || '', players, rating: 1500, history: [] };
+            savedTeams.push(teamData);
+        }
+        await writeSavedTeams(savedTeams);
     }
-
-    writeSavedTeams(savedTeams);
-    loadSavedTeams();
+    await loadSavedTeams();
     alert(`Team ${teamName} saved!`);
 }
 
 // Загрузка команды в форму
-function loadTeam(teamNum) {
+async function loadTeam(teamNum) {
     const select = document.getElementById(`team${teamNum}Load`);
     if (!select) return;
     const teamName = select.value;
     if (!teamName) return;
-    const savedTeams = readSavedTeams();
+    const savedTeams = await readSavedTeams();
     const team = savedTeams.find(t => t.name === teamName);
     if (!team) return;
 
@@ -138,7 +136,7 @@ function loadTeam(teamNum) {
 }
 
 // HLTV load (не затираем историю, если уже есть)
-function loadHltvTeam(teamNum) {
+async function loadHltvTeam(teamNum) {
     const select = document.getElementById(`team${teamNum}HltvLoad`);
     if (!select) return;
     const teamName = select.value;
@@ -162,34 +160,29 @@ function loadHltvTeam(teamNum) {
         }
     });
 
-    // Сохраняем команду в localStorage без перезаписи истории, если есть
-    const savedTeams = readSavedTeams();
-    const existingIndex = savedTeams.findIndex(t => t.name === team.name);
-    if (existingIndex !== -1) {
-        // Обновляем лишь логотип и игроков, оставляя rating и history
-        savedTeams[existingIndex] = {
-            ...savedTeams[existingIndex],
-            logoUrl: team.logoUrl,
-            players: team.players
-        };
+    if (window.csApi) {
+        const existingTeams = await readSavedTeams();
+        const existing = existingTeams.find(t => t.name === team.name);
+        const payload = existing ? { ...existing, logoUrl: team.logoUrl, players: team.players } : { name: team.name, logoUrl: team.logoUrl, players: team.players, rating: 1500, history: [] };
+        await window.csApi.upsertTeam(payload);
     } else {
-        savedTeams.push({
-            name: team.name,
-            logoUrl: team.logoUrl,
-            players: team.players,
-            rating: 1500,
-            history: []
-        });
+        const savedTeams = await readSavedTeams();
+        const existingIndex = savedTeams.findIndex(t => t.name === team.name);
+        if (existingIndex !== -1) {
+            savedTeams[existingIndex] = { ...savedTeams[existingIndex], logoUrl: team.logoUrl, players: team.players };
+        } else {
+            savedTeams.push({ name: team.name, logoUrl: team.logoUrl, players: team.players, rating: 1500, history: [] });
+        }
+        await writeSavedTeams(savedTeams);
     }
-    writeSavedTeams(savedTeams);
-    loadSavedTeams();
+    await loadSavedTeams();
 }
 
 // ---------- РЕЙТИНГИ и ИСТОРИЯ ----------
 // Elo расчёт и запись истории — функция безопасная и идемпотентная
-function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
+async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
     console.log('updateTeamRatings called', team1Name, team2Name, winnerName, finalScore);
-    const savedTeams = readSavedTeams();
+    const savedTeams = await readSavedTeams();
 
     const idx1 = savedTeams.findIndex(t => t.name === team1Name);
     const idx2 = savedTeams.findIndex(t => t.name === team2Name);
@@ -249,7 +242,7 @@ function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
     // Сохраняем обратно
     savedTeams[idx1] = t1;
     savedTeams[idx2] = t2;
-    writeSavedTeams(savedTeams);
+    await writeSavedTeams(savedTeams);
 
     console.log('Ratings updated and history appended for', team1Name, team2Name);
 }
@@ -416,7 +409,7 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
     }
 }
 
-function startLiveMatch() {
+async function startLiveMatch() {
   const team1Name = document.getElementById('team1Name').value.trim() || 'Team A';
   const team2Name = document.getElementById('team2Name').value.trim() || 'Team B';
   let team1Chance = parseInt(document.getElementById('team1Chance').value);
@@ -478,8 +471,8 @@ function startLiveMatch() {
   const mapResults = [];
 
   // Гарантируем, что обе команды существуют в localStorage c актуальным составом и логотипом
-  (function ensureTeamsExist() {
-    const savedTeams = readSavedTeams();
+  await (async function ensureTeamsExist() {
+    const savedTeams = await readSavedTeams();
     function upsertTeam(name, logoUrl, players) {
       const idx = savedTeams.findIndex(t => t.name === name);
       if (idx !== -1) {
@@ -501,7 +494,7 @@ function startLiveMatch() {
     }
     upsertTeam(team1Name, team1Logo, team1Players);
     upsertTeam(team2Name, team2Logo, team2Players);
-    writeSavedTeams(savedTeams);
+    await writeSavedTeams(savedTeams);
   })();
 
   function playNextMap() {
@@ -528,7 +521,7 @@ function startLiveMatch() {
           // === ВАЖНО: обновляем рейтинг ТОЛЬКО один раз после полного матча ===
           if (isRated) {
             try {
-              updateTeamRatings(team1Name, team2Name, finalWinner, finalScore);
+              (async () => { await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore); })();
               // Обновим таблицы/профили *после* гарантированного записи localStorage
               if (typeof window.updateRatingsTable === 'function') {
                 window.updateRatingsTable();

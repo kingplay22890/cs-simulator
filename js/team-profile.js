@@ -21,17 +21,21 @@ function readSavedTeams() {
 }
 
 // Загружаем команды из localStorage и нормализуем структуру
-function loadAllTeams() {
+async function loadAllTeams() {
   try {
-    const saved = localStorage.getItem('cs_teams');
-    allTeams = JSON.parse(saved || '[]');
-    allTeams = allTeams.map(t => ({
-      name: t.name,
-      logoUrl: t.logoUrl || '',
-      players: Array.isArray(t.players) ? t.players : [],
-      rating: typeof t.rating === 'number' ? t.rating : 1500,
-      history: Array.isArray(t.history) ? t.history : []
-    }));
+    if (window.csApi) {
+      allTeams = await window.csApi.fetchTeams();
+    } else {
+      const saved = localStorage.getItem('cs_teams');
+      allTeams = JSON.parse(saved || '[]');
+      allTeams = allTeams.map(t => ({
+        name: t.name,
+        logoUrl: t.logoUrl || '',
+        players: Array.isArray(t.players) ? t.players : [],
+        rating: typeof t.rating === 'number' ? t.rating : 1500,
+        history: Array.isArray(t.history) ? t.history : []
+      }));
+    }
     return allTeams;
   } catch (error) {
     console.error('Error loading teams:', error);
@@ -80,9 +84,9 @@ function openTeamProfile(teamName) {
   showTeamProfile();
 }
 
-function showTeamProfile() {
+async function showTeamProfile() {
   // Перезагружаем данные, чтобы была актуальная информация
-  loadAllTeams();
+  await loadAllTeams();
 
   const select = document.getElementById('teamSelect');
   if (!select) return;
@@ -191,8 +195,8 @@ function showTeamProfile() {
   if (profileContainer) profileContainer.classList.remove('hidden');
 }
 
-function refreshProfile() {
-  loadAllTeams();
+async function refreshProfile() {
+  await loadAllTeams();
   populateTeamSelect();
 
   const currentTeam = document.getElementById('teamSelect').value;
@@ -201,9 +205,9 @@ function refreshProfile() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('Initializing team profile...');
-  loadAllTeams();
+  await loadAllTeams();
   populateTeamSelect();
 
   const select = document.getElementById('teamSelect');
@@ -215,16 +219,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const teamFromUrl = urlParams.get('team');
   if (teamFromUrl) {
-    // откроем профиль (если команда существует)
-    setTimeout(() => openTeamProfile(teamFromUrl), 50);
+    openTeamProfile(teamFromUrl);
   }
 
   // Автообновление каждые 3 секунды (если видима)
-  setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      refreshProfile();
-    }
-  }, 3000);
+  // Realtime подписка на изменения профиля
+  if (window.csApi?.client) {
+    window.csApi.client
+      .channel('profile-teams')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
+        if (document.visibilityState === 'visible') refreshProfile();
+      })
+      .subscribe();
+  } else {
+    setInterval(() => {
+      if (document.visibilityState === 'visible') refreshProfile();
+    }, 3000);
+  }
 });
 
 // делаем функции глобальными
