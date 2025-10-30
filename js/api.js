@@ -18,14 +18,15 @@
       logoUrl: t.logo_url || t.logoUrl || '',
       players: Array.isArray(t.players) ? t.players : [],
       rating: typeof t.rating === 'number' ? t.rating : 1500,
-      history: Array.isArray(t.history) ? t.history : []
+      history: Array.isArray(t.history) ? t.history : [],
+      awards: Array.isArray(t.awards) ? t.awards : []
     };
   }
 
   async function fetchTeams(){
     const { data, error } = await client
       .from('teams')
-      .select('name,logo_url,rating,players,history')
+      .select('name,logo_url,rating,players,history,awards')
       .order('rating', { ascending: false });
     if (error) throw error;
     return (data || []).map(normalizeTeam);
@@ -34,7 +35,7 @@
   async function getTeamByName(name){
     const { data, error } = await client
       .from('teams')
-      .select('name,logo_url,rating,players,history')
+      .select('name,logo_url,rating,players,history,awards')
       .eq('name', name)
       .maybeSingle();
     if (error) throw error;
@@ -47,7 +48,8 @@
       logo_url: team.logoUrl || '',
       players: Array.isArray(team.players) ? team.players : [],
       rating: typeof team.rating === 'number' ? team.rating : 1500,
-      history: Array.isArray(team.history) ? team.history : []
+      history: Array.isArray(team.history) ? team.history : [],
+      awards: Array.isArray(team.awards) ? team.awards : []
     };
     const { error } = await client.from('teams').upsert(payload, { onConflict: 'name' });
     if (error) throw error;
@@ -60,7 +62,8 @@
       logo_url: t.logoUrl || '',
       players: Array.isArray(t.players) ? t.players : [],
       rating: typeof t.rating === 'number' ? t.rating : 1500,
-      history: Array.isArray(t.history) ? t.history : []
+      history: Array.isArray(t.history) ? t.history : [],
+      awards: Array.isArray(t.awards) ? t.awards : []
     }));
     const { error } = await client.from('teams').upsert(payload, { onConflict: 'name' });
     if (error) throw error;
@@ -93,7 +96,8 @@
           logoUrl: t.logoUrl || '',
           players: Array.isArray(t.players) ? t.players : [],
           rating: typeof t.rating === 'number' ? t.rating : 1500,
-          history: Array.isArray(t.history) ? t.history : []
+          history: Array.isArray(t.history) ? t.history : [],
+          awards: Array.isArray(t.awards) ? t.awards : []
         }));
         await upsertTeamsBulk(normalized);
       }

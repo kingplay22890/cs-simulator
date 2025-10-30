@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Профиль команды</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script> <!-- Если используешь Tailwind в проекте -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Для графика -->
+  <script src="js/team-profile.js"></script>
+ 
 </head>
 <body class="bg-gray-900 text-white p-6">
 
@@ -21,14 +24,21 @@
       <div class="flex items-center gap-4 mb-4">
         <img id="teamLogo" class="w-16 h-16 rounded" src="https://via.placeholder.com/64" alt="logo">
         <div>
-          <h1 id="teamName" class="text-2xl font-bold"></h1>
+          <h1 id="teamName" class="text-2xl font-bold inline"></h1><button id="editProfileBtn" title="Редактировать профиль" class="ml-2 text-xl align-middle">✏️</button>
           <p class="text-blue-400"><span id="teamRank"></span> • <span id="teamRating"></span></p>
         </div>
       </div>
 
         <!-- Баннер игроков как на HLTV -->
         <div id="playerBanner" class="grid grid-cols-5 gap-4 items-end justify-items-center pb-4 mb-2 border-b border-gray-700"></div>
-
+        <!-- Блок наград/кубков -->
+        <div class="bg-gray-800 rounded-xl p-4 mb-4">
+          <div class="flex items-center mb-2">
+            <h2 class="text-xl font-bold">Награды</h2>
+            <button id="addAwardBtn" class="hidden ml-2 text-xl text-yellow-400 hover:text-yellow-300" title="Добавить трофей">➕</button>
+          </div>
+          <div id="awardsList" class="flex flex-wrap gap-4"></div>
+        </div>
       <div class="grid grid-cols-3 gap-4 text-center">
         <div class="bg-gray-700 p-4 rounded">
           <p class="text-sm text-gray-400">Рейтинг (5 матчей)</p>
@@ -44,12 +54,13 @@
         </div>
       </div>
     </div>
-
     <div class="bg-gray-800 rounded-xl p-6 mb-6">
       <h2 class="text-xl font-bold mb-4">Состав</h2>
       <div id="roster" class="space-y-2"></div>
     </div>
-
+    <h3 class="text-lg mb-2 mt-6">World Ranking Development</h3>
+    <div id="peakInfo" class="mb-2 text-orange-400"></div> <!-- Инфо о пике -->
+    <canvas id="rankingChart" class="w-full max-w-4xl" height="200"></canvas>
     <div class="bg-gray-800 rounded-xl p-6">
       <h2 class="text-xl font-bold mb-4">История матчей</h2>
       <table class="w-full text-sm">

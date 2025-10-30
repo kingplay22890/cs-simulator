@@ -226,19 +226,32 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
     // Обеспечиваем корректный score строкой
     const scoreStr = typeof finalScore === 'string' ? finalScore : (finalScore && finalScore.score) ? finalScore.score : 'N/A';
 
+    // --- Новый блок: пересчитываем ранги перед добавлением новых матчей ---
+    const teamsAfter = savedTeams.map(t => {
+        if (t.name === t1.name) return { ...t, rating: t1.rating };
+        if (t.name === t2.name) return { ...t, rating: t2.rating };
+        return t;
+    });
+    const sorted = teamsAfter.slice().sort((a, b) => b.rating - a.rating);
+    const t1Rank = sorted.findIndex(t => t.name === t1.name) + 1;
+    const t2Rank = sorted.findIndex(t => t.name === t2.name) + 1;
+    // --- ---
+
     const entry1 = {
         date,
         opponent: team2Name,
         result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'),
         score: scoreStr,
-        ratingChange: delta1
+        ratingChange: delta1,
+        rank: t1Rank // <--- сюда
     };
     const entry2 = {
         date,
         opponent: team1Name,
         result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'),
         score: scoreStr.split('-').reverse().join('-'),
-        ratingChange: delta2
+        ratingChange: delta2,
+        rank: t2Rank // <--- сюда
     };
 
     // Добавляем в начало истории (новые сверху)
