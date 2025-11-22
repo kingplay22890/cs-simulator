@@ -66,6 +66,265 @@ async function loadSavedTeams() {
 
     // Для локального режима синхронизируем структуру
     if (!window.csApi) await writeSavedTeams(savedTeams);
+    
+    // Инициализируем поиск команд
+    initTeamSearch();
+}
+
+// ---------- Team Search Functionality ----------
+let allTeamsCache = [];
+let selectedTeamIndex = { team1: -1, team2: -1 };
+
+async function initTeamSearch() {
+    // Загружаем все команды (включая HLTV) в кэш
+    const savedTeams = await readSavedTeams();
+    allTeamsCache = [...savedTeams];
+    
+    // Добавляем HLTV команды
+    hltvTeams.forEach(hltvTeam => {
+        if (!allTeamsCache.find(t => t.name === hltvTeam.name)) {
+            allTeamsCache.push({
+                name: hltvTeam.name,
+                logoUrl: hltvTeam.logoUrl || '',
+                players: hltvTeam.players || [],
+                rating: 1500,
+                history: [],
+                isHltv: true
+            });
+        }
+    });
+    
+    // Инициализируем поиск для обеих команд
+    setupTeamSearch(1);
+    setupTeamSearch(2);
+}
+
+function setupTeamSearch(teamNum) {
+    const searchInput = document.getElementById(`team${teamNum}Search`);
+    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
+    
+    if (!searchInput || !dropdown) return;
+    
+    // Проверяем, были ли уже добавлены обработчики
+    if (searchInput.dataset.searchInitialized === 'true') return;
+    searchInput.dataset.searchInitialized = 'true';
+    
+    // Обработчик ввода
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (query.length === 0) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+        
+        filterAndShowTeams(teamNum, query);
+    });
+    
+    // Обработчик фокуса
+    searchInput.addEventListener('focus', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        if (query.length > 0) {
+            filterAndShowTeams(teamNum, query);
+        } else {
+            // Показываем все команды при фокусе на пустом поле
+            showAllTeams(teamNum);
+        }
+    });
+    
+    // Закрытие при клике вне (один глобальный обработчик для всех поисков)
+    if (!window.teamSearchClickHandler) {
+        window.teamSearchClickHandler = (e) => {
+            const allSearchInputs = document.querySelectorAll('[id$="Search"]');
+            const allDropdowns = document.querySelectorAll('[id$="Dropdown"]');
+            
+            let clickedInside = false;
+            allSearchInputs.forEach(input => {
+                if (input.contains(e.target)) clickedInside = true;
+            });
+            allDropdowns.forEach(drop => {
+                if (drop.contains(e.target)) clickedInside = true;
+            });
+            
+            if (!clickedInside) {
+                allDropdowns.forEach(drop => drop.classList.add('hidden'));
+            }
+        };
+        document.addEventListener('click', window.teamSearchClickHandler);
+    }
+    
+    // Навигация клавиатурой
+    searchInput.addEventListener('keydown', (e) => {
+        const items = dropdown.querySelectorAll('.team-search-item:not(.team-search-item-empty)');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedTeamIndex[`team${teamNum}`] = Math.min(
+                selectedTeamIndex[`team${teamNum}`] + 1,
+                items.length - 1
+            );
+            updateSelectedItem(teamNum, items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedTeamIndex[`team${teamNum}`] = Math.max(
+                selectedTeamIndex[`team${teamNum}`] - 1,
+                -1
+            );
+            updateSelectedItem(teamNum, items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedTeamIndex[`team${teamNum}`] >= 0 && items[selectedTeamIndex[`team${teamNum}`]]) {
+                items[selectedTeamIndex[`team${teamNum}`]].click();
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+        }
+    });
+}
+
+function filterAndShowTeams(teamNum, query) {
+    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
+    const filtered = allTeamsCache.filter(team => 
+        team.name.toLowerCase().includes(query)
+    );
+    
+    renderTeamDropdown(teamNum, filtered);
+    selectedTeamIndex[`team${teamNum}`] = -1;
+}
+
+function showAllTeams(teamNum) {
+    renderTeamDropdown(teamNum, allTeamsCache);
+    selectedTeamIndex[`team${teamNum}`] = -1;
+}
+
+function renderTeamDropdown(teamNum, teams) {
+    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
+    if (!dropdown) return;
+    
+    if (teams.length === 0) {
+        dropdown.innerHTML = '<div class="team-search-item-empty">No teams found</div>';
+        dropdown.classList.remove('hidden');
+        return;
+    }
+    
+    dropdown.innerHTML = teams.map((team, index) => {
+        const logo = team.logoUrl || 'https://via.placeholder.com/32?text=🏆';
+        const rating = typeof team.rating === 'number' ? team.rating : 1500;
+        const hltvBadge = team.isHltv ? '<span class="text-xs bg-purple-600 px-1 rounded ml-2">HLTV</span>' : '';
+        
+        return `
+            <div class="team-search-item" data-team-name="${team.name}" data-index="${index}">
+                <img src="${logo}" alt="${team.name}" class="team-search-item-logo" onerror="this.src='https://via.placeholder.com/32?text=🏆'">
+                <div class="team-search-item-info">
+                    <div class="team-search-item-name">${team.name}${hltvBadge}</div>
+                    <div class="team-search-item-rating">Rating: ${rating}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Добавляем обработчики клика
+    dropdown.querySelectorAll('.team-search-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const teamName = item.getAttribute('data-team-name');
+            selectTeam(teamNum, teamName);
+        });
+    });
+    
+    dropdown.classList.remove('hidden');
+}
+
+function updateSelectedItem(teamNum, items) {
+    items.forEach((item, index) => {
+        if (index === selectedTeamIndex[`team${teamNum}`]) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+async function selectTeam(teamNum, teamName) {
+    const searchInput = document.getElementById(`team${teamNum}Search`);
+    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
+    
+    // Находим команду
+    const team = allTeamsCache.find(t => t.name === teamName);
+    if (!team) return;
+    
+    // Устанавливаем значение в поле поиска
+    if (searchInput) {
+        searchInput.value = team.name;
+    }
+    
+    // Скрываем выпадающий список
+    if (dropdown) {
+        dropdown.classList.add('hidden');
+    }
+    
+    // Загружаем команду
+    if (team.isHltv) {
+        // Загружаем HLTV команду
+        await loadHltvTeamByName(teamNum, teamName);
+    } else {
+        // Загружаем сохраненную команду
+        await loadTeamByName(teamNum, teamName);
+    }
+}
+
+async function loadTeamByName(teamNum, teamName) {
+    const savedTeams = await readSavedTeams();
+    const team = savedTeams.find(t => t.name === teamName);
+    if (!team) return;
+    
+    document.getElementById(`team${teamNum}Name`).value = team.name;
+    document.getElementById(`team${teamNum}LogoUrl`).value = team.logoUrl || '';
+    const preview = document.getElementById(`team${teamNum}LogoPreview`);
+    if (preview) preview.src = team.logoUrl || '';
+    
+    // Фильтруем только активных игроков (не BENCHED)
+    const activePlayers = team.players && Array.isArray(team.players) 
+      ? team.players.filter(p => p.status !== 'benched')
+      : [];
+    
+    const playerContainer = document.getElementById(`team${teamNum}Players`);
+    playerContainer.querySelectorAll('div').forEach((div, index) => {
+        if (activePlayers[index]) {
+            div.children[0].value = activePlayers[index].name || '';
+            div.children[1].value = activePlayers[index].rating ?? '';
+            if (div.children[2]) div.children[2].value = activePlayers[index].photoUrl || '';
+        } else {
+            div.children[0].value = '';
+            div.children[1].value = '';
+            if (div.children[2]) div.children[2].value = '';
+        }
+    });
+}
+
+async function loadHltvTeamByName(teamNum, teamName) {
+    const team = hltvTeams.find(t => t.name === teamName);
+    if (!team) return;
+    
+    document.getElementById(`team${teamNum}Name`).value = team.name;
+    document.getElementById(`team${teamNum}LogoUrl`).value = team.logoUrl;
+    const preview = document.getElementById(`team${teamNum}LogoPreview`);
+    if (preview) preview.src = team.logoUrl;
+    
+    // Фильтруем только активных игроков (не BENCHED)
+    const activePlayers = team.players && Array.isArray(team.players)
+      ? team.players.filter(p => p.status !== 'benched')
+      : [];
+    
+    const playerContainer = document.getElementById(`team${teamNum}Players`);
+    playerContainer.querySelectorAll('div').forEach((div, index) => {
+        if (activePlayers[index]) {
+            div.children[0].value = activePlayers[index].name;
+            div.children[1].value = activePlayers[index].rating;
+        } else {
+            div.children[0].value = '';
+            div.children[1].value = '';
+        }
+    });
 }
 
 // Сохранение команды: НЕ стираем history или rating, если команда существует
@@ -109,6 +368,8 @@ async function saveTeam(teamNum) {
         await writeSavedTeams(savedTeams);
     }
     await loadSavedTeams();
+    // Обновляем кэш команд для поиска
+    await initTeamSearch();
     alert(`Team ${teamName} saved!`);
 }
 
@@ -186,47 +447,68 @@ async function loadHltvTeam(teamNum) {
 
 // ---------- РЕЙТИНГИ и ИСТОРИЯ ----------
 // Elo расчёт и запись истории — функция безопасная и идемпотентная
-async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
-    console.log('updateTeamRatings called', team1Name, team2Name, winnerName, finalScore);
-    const savedTeams = await readSavedTeams();
+function makePlayer(name, rating, photoUrl) {
+  return { id: 'p' + Date.now() + Math.floor(Math.random()*1e6), name, rating, photoUrl };
+}
 
+function normalizeName(name) {
+  return (name||'').toLowerCase().trim();
+}
+
+async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, playerSeriesRatings, playerSeriesStats) {
+    const savedTeams = await readSavedTeams();
     const idx1 = savedTeams.findIndex(t => t.name === team1Name);
     const idx2 = savedTeams.findIndex(t => t.name === team2Name);
     if (idx1 === -1 || idx2 === -1) {
         console.warn('One or both teams not found when updating ratings:', team1Name, team2Name);
-        // если команда отсутствует — ничего не делаем
         return;
     }
-
     const t1 = { ...savedTeams[idx1], history: Array.isArray(savedTeams[idx1].history) ? [...savedTeams[idx1].history] : [] };
     const t2 = { ...savedTeams[idx2], history: Array.isArray(savedTeams[idx2].history) ? [...savedTeams[idx2].history] : [] };
-
     const kFactor = 32;
     const expected1 = 1 / (1 + Math.pow(10, (t2.rating - t1.rating) / 400));
     const expected2 = 1 - expected1;
-
     let delta1 = 0, delta2 = 0;
-    if (winnerName === team1Name) {
-        delta1 = Math.round(kFactor * (1 - expected1));
-        delta2 = Math.round(kFactor * (0 - expected2));
-    } else if (winnerName === team2Name) {
-        delta1 = Math.round(kFactor * (0 - expected1));
-        delta2 = Math.round(kFactor * (1 - expected2));
-    } else {
-        // ничья (на всякий случай)
-        delta1 = Math.round(kFactor * (0.5 - expected1));
-        delta2 = Math.round(kFactor * (0.5 - expected2));
-    }
-
+    if (winnerName === team1Name) { delta1 = Math.round(kFactor * (1 - expected1)); delta2 = Math.round(kFactor * (0 - expected2)); }
+    else if (winnerName === team2Name) { delta1 = Math.round(kFactor * (0 - expected1)); delta2 = Math.round(kFactor * (1 - expected2)); }
+    else { delta1 = Math.round(kFactor * (0.5 - expected1)); delta2 = Math.round(kFactor * (0.5 - expected2)); }
     t1.rating = Math.max(100, Math.round(t1.rating + delta1));
     t2.rating = Math.max(100, Math.round(t2.rating + delta2));
 
-    const date = new Date().toISOString().split('T')[0];
+    // Обновление статистики rating2Avg с учётом id и normalizeName (как ранее)
+    if (playerSeriesRatings && t1.players) {
+        const map1 = playerSeriesRatings.team1 || {};
+        t1.players = t1.players.map(p => {
+            const keys = Object.keys(map1);
+            const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
+            const r = statKey ? parseFloat(map1[statKey]) : NaN;
+            if (!isNaN(r)) {
+                const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
+                const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
+                const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
+                return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
+            }
+            return p;
+        });
+    }
+    if (playerSeriesRatings && t2.players) {
+        const map2 = playerSeriesRatings.team2 || {};
+        t2.players = t2.players.map(p => {
+            const keys = Object.keys(map2);
+            const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
+            const r = statKey ? parseFloat(map2[statKey]) : NaN;
+            if (!isNaN(r)) {
+                const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
+                const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
+                const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
+                return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
+            }
+            return p;
+        });
+    }
 
-    // Обеспечиваем корректный score строкой
+    const date = new Date().toISOString();
     const scoreStr = typeof finalScore === 'string' ? finalScore : (finalScore && finalScore.score) ? finalScore.score : 'N/A';
-
-    // --- Новый блок: пересчитываем ранги перед добавлением новых матчей ---
     const teamsAfter = savedTeams.map(t => {
         if (t.name === t1.name) return { ...t, rating: t1.rating };
         if (t.name === t2.name) return { ...t, rating: t2.rating };
@@ -235,39 +517,62 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore) {
     const sorted = teamsAfter.slice().sort((a, b) => b.rating - a.rating);
     const t1Rank = sorted.findIndex(t => t.name === t1.name) + 1;
     const t2Rank = sorted.findIndex(t => t.name === t2.name) + 1;
-    // --- ---
 
-    const entry1 = {
-        date,
-        opponent: team2Name,
-        result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'),
-        score: scoreStr,
-        ratingChange: delta1,
-        rank: t1Rank // <--- сюда
-    };
-    const entry2 = {
-        date,
-        opponent: team1Name,
-        result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'),
-        score: scoreStr.split('-').reverse().join('-'),
-        ratingChange: delta2,
-        rank: t2Rank // <--- сюда
-    };
+    // Сохраняем playerStats в запись истории с MVP матча
+    const mvpData = mvpMatch ? { name: mvpMatch.name, photoUrl: mvpMatch.photoUrl, avgRating: mvpMatch.avgRating } : null;
+    const entry1 = { date, opponent: team2Name, result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'), score: scoreStr, ratingChange: delta1, rank: t1Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team1) ? playerSeriesStats.team1.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
+    const entry2 = { date, opponent: team1Name, result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'), score: scoreStr.split('-').reverse().join('-'), ratingChange: delta2, rank: t2Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team2) ? playerSeriesStats.team2.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
 
-    // Добавляем в начало истории (новые сверху)
     t1.history = [entry1, ...t1.history];
     t2.history = [entry2, ...t2.history];
 
-    // Сохраняем обратно только изменённые команды, чтобы не перезаписывать игроков
     if (window.csApi) {
         await window.csApi.upsertTeamsBulk([t1, t2]);
+        
+        // Сохраняем статистику игроков в Supabase
+        if (playerSeriesStats?.team1 && Array.isArray(playerSeriesStats.team1)) {
+            for (const player of playerSeriesStats.team1) {
+                const stat = entry1.playerStats.find(p => p.id === player.id);
+                if (stat) {
+                    await window.csApi.savePlayerMatch({
+                        player_name: stat.name,
+                        team_name: t1.name,
+                        opponent: t2.name,
+                        match_date: date,
+                        result: entry1.result,
+                        score: scoreStr,
+                        rating: parseFloat(stat.rating2),
+                        kills: player.kills || 0,
+                        deaths: player.deaths || 0,
+                        adr: parseFloat(player.adr) || 0
+                    });
+                }
+            }
+        }
+        if (playerSeriesStats?.team2 && Array.isArray(playerSeriesStats.team2)) {
+            for (const player of playerSeriesStats.team2) {
+                const stat = entry2.playerStats.find(p => p.id === player.id);
+                if (stat) {
+                    await window.csApi.savePlayerMatch({
+                        player_name: stat.name,
+                        team_name: t2.name,
+                        opponent: t1.name,
+                        match_date: date,
+                        result: entry2.result,
+                        score: entry2.score,
+                        rating: parseFloat(stat.rating2),
+                        kills: player.kills || 0,
+                        deaths: player.deaths || 0,
+                        adr: parseFloat(player.adr) || 0
+                    });
+                }
+            }
+        }
     } else {
         savedTeams[idx1] = t1;
         savedTeams[idx2] = t2;
         await writeSavedTeams(savedTeams);
     }
-
-    console.log('Ratings updated and history appended for', team1Name, team2Name);
 }
 
 // ---------- Симуляция матча ----------
@@ -369,53 +674,103 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
         const sortedTeam2Stats = team2Stats.sort((a, b) => parseFloat(b.rating2) - parseFloat(a.rating2));
 
         if (statsDiv) {
+            const mvpPhoto = mvp.photoUrl || '';
+            const hasMvpPhoto = mvpPhoto && mvpPhoto.trim() !== '';
+            const mvpPhotoHtml = hasMvpPhoto 
+                ? `<img src="${mvpPhoto}" alt="${mvp.name}" class="mvp-photo" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.nextElementSibling; if(placeholder) { placeholder.style.display='flex'; placeholder.style.visibility='visible'; }">`
+                : '';
+            const mvpPlaceholderHtml = `<div class="mvp-photo-placeholder" style="${hasMvpPhoto ? 'display:none; visibility:hidden;' : 'display:flex; visibility:visible;'}">🏆</div>`;
+            
+            const isTeam1Winner = winner === team1Name;
+            const winnerClass1 = isTeam1Winner ? 'map-score-winner' : 'map-score-loser';
+            const winnerClass2 = !isTeam1Winner ? 'map-score-winner' : 'map-score-loser';
+            
             statsDiv.innerHTML += `
-                <h3 class="text-lg font-semibold mb-2">Map ${mapNumber} (${mapName}): ${winner} (${score1}-${score2})${isOvertime ? ` (Overtime ${otNumber})` : ''}</h3>
-                <p class="text-yellow-400 mb-2">MVP: ${mvp.name} (Rating: ${mvp.rating2})</p>
-                <table class="w-full text-left text-sm border-collapse mb-6">
+                <div class="map-result-header">
+                    <div class="map-result-title">Map ${mapNumber}: ${mapName}${isOvertime ? ` <span class="overtime-badge">Overtime ${otNumber}</span>` : ''}</div>
+                    <div class="map-score-display">
+                        <div class="map-score-team ${winnerClass1}">
+                            ${team1Logo ? `<img src="${team1Logo}" alt="${team1Name}" class="map-score-logo">` : ''}
+                            <span class="map-score-name">${team1Name}</span>
+                            <span class="map-score-value">${score1}</span>
+                        </div>
+                        <span class="map-score-separator">-</span>
+                        <div class="map-score-team ${winnerClass2}">
+                            <span class="map-score-value">${score2}</span>
+                            <span class="map-score-name">${team2Name}</span>
+                            ${team2Logo ? `<img src="${team2Logo}" alt="${team2Name}" class="map-score-logo">` : ''}
+                        </div>
+                    </div>
+                    <div class="map-result-mvp">MVP: ${mvp.name} (Rating: ${mvp.rating2})</div>
+                </div>
+                <table class="stats-table w-full text-left text-sm">
                     <thead>
-                        <tr class="bg-gray-700">
-                            <th class="p-2">Player</th>
-                            <th class="p-2">K</th>
-                            <th class="p-2">D</th>
-                            <th class="p-2">A</th>
-                            <th class="p-2">ADR</th>
-                            <th class="p-2">Rating 2.0</th>
+                        <tr>
+                            <th>Player</th>
+                            <th>K</th>
+                            <th>D</th>
+                            <th>A</th>
+                            <th>ADR</th>
+                            <th>Rating 2.0</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr class="bg-gray-600">
-                            <td class="p-2 font-bold" colspan="6">${team1Name} (${score1} rounds)</td>
+                        <tr class="team-header">
+                            <td colspan="6">${team1Name} (${score1} rounds)</td>
                         </tr>
-                        ${sortedTeam1Stats.map(p => `
-                            <tr class="hover:bg-gray-500">
-                                <td class="p-2">${p.name}</td>
-                                <td class="p-2">${p.kills}</td>
-                                <td class="p-2">${p.deaths}</td>
-                                <td class="p-2">${p.assists}</td>
-                                <td class="p-2">${p.adr}</td>
-                                <td class="p-2">${p.rating2}</td>
+                        ${sortedTeam1Stats.map(p => {
+                            const photo = p.photoUrl || '';
+                            const hasPhoto = photo && photo.trim() !== '';
+                            const photoHtml = hasPhoto 
+                                ? `<img src="${photo}" alt="${p.name}" class="player-photo" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.nextElementSibling; if(placeholder) { placeholder.style.display='flex'; placeholder.style.visibility='visible'; }">`
+                                : '';
+                            const placeholderHtml = `<div class="player-photo-placeholder" style="${hasPhoto ? 'display:none; visibility:hidden;' : 'display:flex; visibility:visible;'}">${p.name.charAt(0).toUpperCase()}</div>`;
+                            return `
+                            <tr>
+                                <td class="player-cell">
+                                    ${photoHtml}
+                                    ${placeholderHtml}
+                                    <span>${p.name}</span>
+                                </td>
+                                <td class="stat-value">${p.kills}</td>
+                                <td class="stat-value">${p.deaths}</td>
+                                <td class="stat-value">${p.assists}</td>
+                                <td class="stat-value">${p.adr}</td>
+                                <td class="rating-value">${p.rating2}</td>
                             </tr>
-                        `).join('')}
-                        <tr class="bg-gray-600">
-                            <td class="p-2 font-bold" colspan="6">${team2Name} (${score2} rounds)</td>
+                        `;
+                        }).join('')}
+                        <tr class="team-header">
+                            <td colspan="6">${team2Name} (${score2} rounds)</td>
                         </tr>
-                        ${sortedTeam2Stats.map(p => `
-                            <tr class="hover:bg-gray-500">
-                                <td class="p-2">${p.name}</td>
-                                <td class="p-2">${p.kills}</td>
-                                <td class="p-2">${p.deaths}</td>
-                                <td class="p-2">${p.assists}</td>
-                                <td class="p-2">${p.adr}</td>
-                                <td class="p-2">${p.rating2}</td>
+                        ${sortedTeam2Stats.map(p => {
+                            const photo = p.photoUrl || '';
+                            const hasPhoto = photo && photo.trim() !== '';
+                            const photoHtml = hasPhoto 
+                                ? `<img src="${photo}" alt="${p.name}" class="player-photo" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.nextElementSibling; if(placeholder) { placeholder.style.display='flex'; placeholder.style.visibility='visible'; }">`
+                                : '';
+                            const placeholderHtml = `<div class="player-photo-placeholder" style="${hasPhoto ? 'display:none; visibility:hidden;' : 'display:flex; visibility:visible;'}">${p.name.charAt(0).toUpperCase()}</div>`;
+                            return `
+                            <tr>
+                                <td class="player-cell">
+                                    ${photoHtml}
+                                    ${placeholderHtml}
+                                    <span>${p.name}</span>
+                                </td>
+                                <td class="stat-value">${p.kills}</td>
+                                <td class="stat-value">${p.deaths}</td>
+                                <td class="stat-value">${p.assists}</td>
+                                <td class="stat-value">${p.adr}</td>
+                                <td class="rating-value">${p.rating2}</td>
                             </tr>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
         }
 
-        callback({ score1, score2, winner, isOvertime });
+        callback({ score1, score2, winner, isOvertime, team1Stats, team2Stats });
     }
 
     if (isInstant) {
@@ -456,13 +811,21 @@ async function startLiveMatch() {
     const name = div.children[0].value.trim();
     const rating = parseFloat(div.children[1].value);
     const photoUrl = (div.children[2]?.value || '').trim();
-    if (name && !isNaN(rating)) team1Players.push({ name, rating, photoUrl });
+    if (name && !isNaN(rating)) {
+      let pl = { name, rating, photoUrl };
+      if (!pl.id) pl = makePlayer(name, rating, photoUrl); // всегда присваиваем id если нет
+      team1Players.push(pl);
+    }
   });
   document.querySelectorAll('#team2Players > div').forEach(div => {
     const name = div.children[0].value.trim();
     const rating = parseFloat(div.children[1].value);
     const photoUrl = (div.children[2]?.value || '').trim();
-    if (name && !isNaN(rating)) team2Players.push({ name, rating, photoUrl });
+    if (name && !isNaN(rating)) {
+      let pl = { name, rating, photoUrl };
+      if (!pl.id) pl = makePlayer(name, rating, photoUrl); // всегда присваиваем id если нет
+      team2Players.push(pl);
+    }
   });
 
   if (team1Players.length !== 5 || team2Players.length !== 5) {
@@ -539,25 +902,228 @@ async function startLiveMatch() {
           const finalWinner = team1Wins > team2Wins ? team1Name : team2Name;
           const finalScore = `${team1Wins}-${team2Wins}`;
 
-          if (resultDiv) {
-            resultDiv.innerHTML += `<p class="text-green-400 text-2xl mt-4">Победа: <b>${finalWinner}</b> ${finalScore}!</p>`;
+          // Вычисляем MVP матча сразу
+          const allMatchStats = [];
+          mapResults.forEach(mr => {
+            if (mr.team1Stats) allMatchStats.push(...mr.team1Stats);
+            if (mr.team2Stats) allMatchStats.push(...mr.team2Stats);
+          });
+          
+          let mvpMatch = null;
+          if (allMatchStats.length > 0) {
+            // Группируем статистику по игрокам для вычисления среднего рейтинга
+            const playerStatsMap = {};
+            allMatchStats.forEach(p => {
+              if (!playerStatsMap[p.name]) {
+                playerStatsMap[p.name] = {
+                  name: p.name,
+                  photoUrl: p.photoUrl || '',
+                  totalRating: 0,
+                  maps: 0
+                };
+              }
+              playerStatsMap[p.name].totalRating += parseFloat(p.rating2) || 0;
+              playerStatsMap[p.name].maps += 1;
+            });
+            
+            // Находим MVP по среднему рейтингу
+            const playersWithAvg = Object.values(playerStatsMap).map(p => ({
+              name: p.name,
+              photoUrl: p.photoUrl,
+              avgRating: (p.totalRating / p.maps).toFixed(2)
+            }));
+            
+            mvpMatch = playersWithAvg.sort((a, b) => parseFloat(b.avgRating) - parseFloat(a.avgRating))[0];
           }
 
-          // === ВАЖНО: обновляем рейтинг ТОЛЬКО один раз после полного матча ===
-          if (isRated) {
-            try {
-              (async () => { await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore); })();
-              // Обновим таблицы/профили *после* гарантированного записи localStorage
-              if (typeof window.updateRatingsTable === 'function') {
-                window.updateRatingsTable();
-              }
-              if (typeof window.refreshProfile === 'function') {
-                window.refreshProfile();
-              }
-            } catch (e) {
-              console.error('Error updating ratings after match:', e);
+          if (resultDiv) {
+            let resultHtml = `<div class="text-center mb-6">
+              <p class="text-green-400 text-3xl font-bold mb-2">🏆 Победа: <span class="text-white">${finalWinner}</span></p>
+              <p class="text-2xl text-gray-300">Счёт: <span class="text-white font-bold">${finalScore}</span></p>
+            </div>`;
+            
+            // Добавляем MVP если он есть
+            if (mvpMatch) {
+              const mvpPhoto = mvpMatch.photoUrl || '';
+              const mvpPhotoHtml = mvpPhoto 
+                ? `<img src="${mvpPhoto}" alt="${mvpMatch.name}" class="mvp-photo" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.nextElementSibling; if(placeholder) { placeholder.style.display='flex'; placeholder.style.visibility='visible'; }">`
+                : '';
+              const hasMvpPhoto = mvpPhoto && mvpPhoto.trim() !== '';
+              const mvpPlaceholderHtml = `<div class="mvp-photo-placeholder" style="${hasMvpPhoto ? 'display:none; visibility:hidden;' : 'display:flex; visibility:visible;'}">${mvpMatch.name.charAt(0).toUpperCase()}</div>`;
+              
+              resultHtml += `
+                <div class="mvp-display">
+                  <div class="mvp-badge">🏆 Match MVP</div>
+                  ${mvpPhotoHtml}
+                  ${mvpPlaceholderHtml}
+                  <div class="mvp-name">${mvpMatch.name}</div>
+                  <div class="mvp-rating">Rating: <span class="mvp-rating-value">${mvpMatch.avgRating}</span></div>
+                </div>
+              `;
             }
+            
+            resultDiv.innerHTML = resultHtml;
           }
+
+          // Формируем итоговую таблицу матча (всегда, независимо от режима rated)
+          (async () => {
+            // Итоги по сериям для формирования итоговой таблицы
+            const agg1 = {}, agg2 = {}, cnt1 = {}, cnt2 = {};
+            // Одновременно собираем тоталы по K/D/A/ADR и тотал-раунды по командам
+            const tot1 = { rounds: 0 };
+            const tot2 = { rounds: 0 };
+            const team1AggStat = {}; // name -> {kills,deaths,assists,adrSum,maps,sumRating}
+            const team2AggStat = {};
+
+                mapResults.forEach(mr => {
+                  tot1.rounds += mr.score1 || 0;
+                  tot2.rounds += mr.score2 || 0;
+
+                  (mr.team1Stats || []).forEach(p => {
+                    const r = parseFloat(p.rating2);
+                    if (!isNaN(r)) {
+                      agg1[p.name] = (agg1[p.name] || 0) + r;
+                      cnt1[p.name] = (cnt1[p.name] || 0) + 1;
+                    }
+                    const rec = team1AggStat[p.name] || { id: p.id, name: p.name, photoUrl: p.photoUrl || '', kills: 0, deaths: 0, assists: 0, adrSum: 0, maps: 0, sumRating: 0 };
+                    if (!rec.id && p.id) rec.id = p.id;
+                    if (!rec.photoUrl && p.photoUrl) rec.photoUrl = p.photoUrl;
+                    rec.kills += parseInt(p.kills) || 0;
+                    rec.deaths += parseInt(p.deaths) || 0;
+                    rec.assists += parseInt(p.assists) || 0;
+                    rec.adrSum += parseFloat(p.adr) || 0;
+                    rec.maps += 1;
+                    rec.sumRating += parseFloat(p.rating2) || 0;
+                    team1AggStat[p.name] = rec;
+                  });
+
+                  (mr.team2Stats || []).forEach(p => {
+                    const r = parseFloat(p.rating2);
+                    if (!isNaN(r)) {
+                      agg2[p.name] = (agg2[p.name] || 0) + r;
+                      cnt2[p.name] = (cnt2[p.name] || 0) + 1;
+                    }
+                    const rec = team2AggStat[p.name] || { id: p.id, name: p.name, photoUrl: p.photoUrl || '', kills: 0, deaths: 0, assists: 0, adrSum: 0, maps: 0, sumRating: 0 };
+                    if (!rec.id && p.id) rec.id = p.id;
+                    if (!rec.photoUrl && p.photoUrl) rec.photoUrl = p.photoUrl;
+                    rec.kills += parseInt(p.kills) || 0;
+                    rec.deaths += parseInt(p.deaths) || 0;
+                    rec.assists += parseInt(p.assists) || 0;
+                    rec.adrSum += parseFloat(p.adr) || 0;
+                    rec.maps += 1;
+                    rec.sumRating += parseFloat(p.rating2) || 0;
+                    team2AggStat[p.name] = rec;
+                  });
+                });
+
+                const playerSeriesRatings = {
+                  team1: Object.fromEntries(Object.keys(agg1).map(k => [k, +(agg1[k] / (cnt1[k] || 1)).toFixed(2)])),
+                  team2: Object.fromEntries(Object.keys(agg2).map(k => [k, +(agg2[k] / (cnt2[k] || 1)).toFixed(2)])),
+                };
+
+                // Формируем сводную таблицу по матчу в том же стиле
+                const team1Rows = Object.values(team1AggStat).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  photoUrl: p.photoUrl || '',
+                  kills: p.kills,
+                  deaths: p.deaths,
+                  assists: p.assists,
+                  adr: Math.round(p.adrSum / Math.max(1, p.maps)),
+                  rating2: (p.sumRating / Math.max(1, p.maps)).toFixed(2)
+                })).sort((a,b) => parseFloat(b.rating2) - parseFloat(a.rating2));
+
+                const team2Rows = Object.values(team2AggStat).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  photoUrl: p.photoUrl || '',
+                  kills: p.kills,
+                  deaths: p.deaths,
+                  assists: p.assists,
+                  adr: Math.round(p.adrSum / Math.max(1, p.maps)),
+                  rating2: (p.sumRating / Math.max(1, p.maps)).toFixed(2)
+                })).sort((a,b) => parseFloat(b.rating2) - parseFloat(a.rating2));
+
+            let matchStatHtml = `
+            <div class="map-result-header">
+              <div class="map-result-title">Match Summary</div>
+            </div>
+            <table class="stats-table w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>K</th>
+                  <th>D</th>
+                  <th>A</th>
+                  <th>ADR</th>
+                  <th>Rating 2.0</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="team-header"><td colspan="6">${team1Name} (${tot1.rounds} rounds)</td></tr>
+                ${team1Rows.map(p => {
+                  const photo = p.photoUrl || '';
+                  const photoHtml = photo 
+                    ? `<img src="${photo}" alt="${p.name}" class="player-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+                    : '';
+                  const placeholderHtml = `<div class="player-photo-placeholder" style="${photo ? 'display:none;' : ''}">${p.name.charAt(0).toUpperCase()}</div>`;
+                  return `
+                  <tr>
+                    <td class="player-cell">
+                      ${photoHtml}
+                      ${placeholderHtml}
+                      <span>${p.name}</span>
+                    </td>
+                    <td class="stat-value">${p.kills}</td>
+                    <td class="stat-value">${p.deaths}</td>
+                    <td class="stat-value">${p.assists}</td>
+                    <td class="stat-value">${p.adr}</td>
+                    <td class="rating-value">${p.rating2}</td>
+                  </tr>
+                `;
+                }).join('')}
+                <tr class="team-header"><td colspan="6">${team2Name} (${tot2.rounds} rounds)</td></tr>
+                ${team2Rows.map(p => {
+                  const photo = p.photoUrl || '';
+                  const photoHtml = photo 
+                    ? `<img src="${photo}" alt="${p.name}" class="player-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+                    : '';
+                  const placeholderHtml = `<div class="player-photo-placeholder" style="${photo ? 'display:none;' : ''}">${p.name.charAt(0).toUpperCase()}</div>`;
+                  return `
+                  <tr>
+                    <td class="player-cell">
+                      ${photoHtml}
+                      ${placeholderHtml}
+                      <span>${p.name}</span>
+                    </td>
+                    <td class="stat-value">${p.kills}</td>
+                    <td class="stat-value">${p.deaths}</td>
+                    <td class="stat-value">${p.assists}</td>
+                    <td class="stat-value">${p.adr}</td>
+                    <td class="rating-value">${p.rating2}</td>
+                  </tr>
+                `;
+                }).join('')}
+              </tbody>
+            </table>`;
+            if (statsDiv) statsDiv.innerHTML += matchStatHtml;
+
+            // === ВАЖНО: обновляем рейтинг ТОЛЬКО если включен режим rated ===
+            if (isRated) {
+              try {
+                await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore, playerSeriesRatings, { team1: team1Rows, team2: team2Rows });
+                // Обновим таблицы/профили *после* гарантированного записи localStorage
+                if (typeof window.updateRatingsTable === 'function') {
+                  window.updateRatingsTable();
+                }
+                if (typeof window.refreshProfile === 'function') {
+                  window.refreshProfile();
+                }
+              } catch (e) {
+                console.error('Error updating ratings after match:', e);
+              }
+            }
+          })();
         }
       });
     }
@@ -589,8 +1155,8 @@ function resetForms() {
 }
 
 // Инициализация окна
-window.onload = () => {
-    loadSavedTeams();
+window.onload = async () => {
+    await loadSavedTeams();
     const savedFormat = localStorage.getItem('cs_match_format');
     if (savedFormat) {
         const el = document.getElementById('matchFormat');
