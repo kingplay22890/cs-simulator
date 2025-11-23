@@ -245,11 +245,14 @@
         deaths: match.deaths || 0,
         adr: match.adr || 0
       };
+      
       const { data, error } = await client
         .from('player_matches')
         .insert([payload]);
+      
       if (error) {
         console.error('Error saving player match:', error);
+        return null;
       }
       return data ? data[0] : null;
     } catch (e) {

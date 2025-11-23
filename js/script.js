@@ -455,123 +455,138 @@ function normalizeName(name) {
   return (name||'').toLowerCase().trim();
 }
 
-async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, playerSeriesRatings, playerSeriesStats) {
-    const savedTeams = await readSavedTeams();
-    const idx1 = savedTeams.findIndex(t => t.name === team1Name);
-    const idx2 = savedTeams.findIndex(t => t.name === team2Name);
-    if (idx1 === -1 || idx2 === -1) {
-        console.warn('One or both teams not found when updating ratings:', team1Name, team2Name);
-        return;
-    }
-    const t1 = { ...savedTeams[idx1], history: Array.isArray(savedTeams[idx1].history) ? [...savedTeams[idx1].history] : [] };
-    const t2 = { ...savedTeams[idx2], history: Array.isArray(savedTeams[idx2].history) ? [...savedTeams[idx2].history] : [] };
-    const kFactor = 32;
-    const expected1 = 1 / (1 + Math.pow(10, (t2.rating - t1.rating) / 400));
-    const expected2 = 1 - expected1;
-    let delta1 = 0, delta2 = 0;
-    if (winnerName === team1Name) { delta1 = Math.round(kFactor * (1 - expected1)); delta2 = Math.round(kFactor * (0 - expected2)); }
-    else if (winnerName === team2Name) { delta1 = Math.round(kFactor * (0 - expected1)); delta2 = Math.round(kFactor * (1 - expected2)); }
-    else { delta1 = Math.round(kFactor * (0.5 - expected1)); delta2 = Math.round(kFactor * (0.5 - expected2)); }
-    t1.rating = Math.max(100, Math.round(t1.rating + delta1));
-    t2.rating = Math.max(100, Math.round(t2.rating + delta2));
+async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, playerSeriesRatings, playerSeriesStats, mvpMatchParam) {
+    console.log('updateTeamRatings called with:', { team1Name, team2Name, winnerName, finalScore, mvpMatchParam });
+    
+    try {
+      const savedTeams = await readSavedTeams();
+      console.log('Saved teams count:', savedTeams.length);
+      
+      const idx1 = savedTeams.findIndex(t => t.name === team1Name);
+      const idx2 = savedTeams.findIndex(t => t.name === team2Name);
+      
+      console.log('Team indices:', { idx1, idx2, team1Name, team2Name });
+      
+      if (idx1 === -1 || idx2 === -1) {
+          console.warn('One or both teams not found when updating ratings:', team1Name, team2Name);
+          console.warn('Available teams:', savedTeams.map(t => t.name));
+          return;
+      }
+      const t1 = { ...savedTeams[idx1], history: Array.isArray(savedTeams[idx1].history) ? [...savedTeams[idx1].history] : [] };
+      const t2 = { ...savedTeams[idx2], history: Array.isArray(savedTeams[idx2].history) ? [...savedTeams[idx2].history] : [] };
+      const kFactor = 32;
+      const expected1 = 1 / (1 + Math.pow(10, (t2.rating - t1.rating) / 400));
+      const expected2 = 1 - expected1;
+      let delta1 = 0, delta2 = 0;
+      if (winnerName === team1Name) { delta1 = Math.round(kFactor * (1 - expected1)); delta2 = Math.round(kFactor * (0 - expected2)); }
+      else if (winnerName === team2Name) { delta1 = Math.round(kFactor * (0 - expected1)); delta2 = Math.round(kFactor * (1 - expected2)); }
+      else { delta1 = Math.round(kFactor * (0.5 - expected1)); delta2 = Math.round(kFactor * (0.5 - expected2)); }
+      t1.rating = Math.max(100, Math.round(t1.rating + delta1));
+      t2.rating = Math.max(100, Math.round(t2.rating + delta2));
 
-    // Обновление статистики rating2Avg с учётом id и normalizeName (как ранее)
-    if (playerSeriesRatings && t1.players) {
-        const map1 = playerSeriesRatings.team1 || {};
-        t1.players = t1.players.map(p => {
-            const keys = Object.keys(map1);
-            const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
-            const r = statKey ? parseFloat(map1[statKey]) : NaN;
-            if (!isNaN(r)) {
-                const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
-                const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
-                const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
-                return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
-            }
-            return p;
-        });
-    }
-    if (playerSeriesRatings && t2.players) {
-        const map2 = playerSeriesRatings.team2 || {};
-        t2.players = t2.players.map(p => {
-            const keys = Object.keys(map2);
-            const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
-            const r = statKey ? parseFloat(map2[statKey]) : NaN;
-            if (!isNaN(r)) {
-                const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
-                const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
-                const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
-                return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
-            }
-            return p;
-        });
-    }
+      // Обновление статистики rating2Avg с учётом id и normalizeName (как ранее)
+      if (playerSeriesRatings && t1.players) {
+          const map1 = playerSeriesRatings.team1 || {};
+          t1.players = t1.players.map(p => {
+              const keys = Object.keys(map1);
+              const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
+              const r = statKey ? parseFloat(map1[statKey]) : NaN;
+              if (!isNaN(r)) {
+                  const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
+                  const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
+                  const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
+                  return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
+              }
+              return p;
+          });
+      }
+      if (playerSeriesRatings && t2.players) {
+          const map2 = playerSeriesRatings.team2 || {};
+          t2.players = t2.players.map(p => {
+              const keys = Object.keys(map2);
+              const statKey = keys.find(k => normalizeName(k) === normalizeName(p.name));
+              const r = statKey ? parseFloat(map2[statKey]) : NaN;
+              if (!isNaN(r)) {
+                  const prevMatches = typeof p.rating2Matches === 'number' ? p.rating2Matches : 0;
+                  const prevAvg = typeof p.rating2Avg === 'number' ? p.rating2Avg : (typeof p.rating === 'number' ? p.rating : 1.0);
+                  const newAvg = ((prevAvg * prevMatches) + r) / (prevMatches + 1);
+                  return { ...p, rating2Avg: parseFloat(newAvg.toFixed(2)), rating2Matches: prevMatches + 1 };
+              }
+              return p;
+          });
+      }
 
-    const date = new Date().toISOString();
-    const scoreStr = typeof finalScore === 'string' ? finalScore : (finalScore && finalScore.score) ? finalScore.score : 'N/A';
-    const teamsAfter = savedTeams.map(t => {
-        if (t.name === t1.name) return { ...t, rating: t1.rating };
-        if (t.name === t2.name) return { ...t, rating: t2.rating };
-        return t;
-    });
-    const sorted = teamsAfter.slice().sort((a, b) => b.rating - a.rating);
-    const t1Rank = sorted.findIndex(t => t.name === t1.name) + 1;
-    const t2Rank = sorted.findIndex(t => t.name === t2.name) + 1;
+      const date = new Date().toISOString();
+      const scoreStr = typeof finalScore === 'string' ? finalScore : (finalScore && finalScore.score) ? finalScore.score : 'N/A';
+      const teamsAfter = savedTeams.map(t => {
+          if (t.name === t1.name) return { ...t, rating: t1.rating };
+          if (t.name === t2.name) return { ...t, rating: t2.rating };
+          return t;
+      });
+      const sorted = teamsAfter.slice().sort((a, b) => b.rating - a.rating);
+      const t1Rank = sorted.findIndex(t => t.name === t1.name) + 1;
+      const t2Rank = sorted.findIndex(t => t.name === t2.name) + 1;
 
-    // Сохраняем playerStats в запись истории с MVP матча
-    const mvpData = mvpMatch ? { name: mvpMatch.name, photoUrl: mvpMatch.photoUrl, avgRating: mvpMatch.avgRating } : null;
-    const entry1 = { date, opponent: team2Name, result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'), score: scoreStr, ratingChange: delta1, rank: t1Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team1) ? playerSeriesStats.team1.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
-    const entry2 = { date, opponent: team1Name, result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'), score: scoreStr.split('-').reverse().join('-'), ratingChange: delta2, rank: t2Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team2) ? playerSeriesStats.team2.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
+      // Сохраняем playerStats в запись истории с MVP матча
+      const mvpData = mvpMatchParam ? { name: mvpMatchParam.name, photoUrl: mvpMatchParam.photoUrl, avgRating: mvpMatchParam.avgRating } : null;
+      const entry1 = { date, opponent: team2Name, result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'), score: scoreStr, ratingChange: delta1, rank: t1Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team1) ? playerSeriesStats.team1.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
+      const entry2 = { date, opponent: team1Name, result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'), score: scoreStr.split('-').reverse().join('-'), ratingChange: delta2, rank: t2Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team2) ? playerSeriesStats.team2.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
 
-    t1.history = [entry1, ...t1.history];
-    t2.history = [entry2, ...t2.history];
+      t1.history = [entry1, ...t1.history];
+      t2.history = [entry2, ...t2.history];
 
-    if (window.csApi) {
-        await window.csApi.upsertTeamsBulk([t1, t2]);
-        
-        // Сохраняем статистику игроков в Supabase
-        if (playerSeriesStats?.team1 && Array.isArray(playerSeriesStats.team1)) {
-            for (const player of playerSeriesStats.team1) {
-                const stat = entry1.playerStats.find(p => p.id === player.id);
-                if (stat) {
-                    await window.csApi.savePlayerMatch({
-                        player_name: stat.name,
-                        team_name: t1.name,
-                        opponent: t2.name,
-                        match_date: date,
-                        result: entry1.result,
-                        score: scoreStr,
-                        rating: parseFloat(stat.rating2),
-                        kills: player.kills || 0,
-                        deaths: player.deaths || 0,
-                        adr: parseFloat(player.adr) || 0
-                    });
-                }
-            }
-        }
-        if (playerSeriesStats?.team2 && Array.isArray(playerSeriesStats.team2)) {
-            for (const player of playerSeriesStats.team2) {
-                const stat = entry2.playerStats.find(p => p.id === player.id);
-                if (stat) {
-                    await window.csApi.savePlayerMatch({
-                        player_name: stat.name,
-                        team_name: t2.name,
-                        opponent: t1.name,
-                        match_date: date,
-                        result: entry2.result,
-                        score: entry2.score,
-                        rating: parseFloat(stat.rating2),
-                        kills: player.kills || 0,
-                        deaths: player.deaths || 0,
-                        adr: parseFloat(player.adr) || 0
-                    });
-                }
-            }
-        }
-    } else {
-        savedTeams[idx1] = t1;
-        savedTeams[idx2] = t2;
-        await writeSavedTeams(savedTeams);
+      console.log('Updated teams before saving:', { t1, t2 });
+
+      if (window.csApi) {
+          console.log('Saving via Supabase API...');
+          await window.csApi.upsertTeamsBulk([t1, t2]);
+          
+          // Сохраняем статистику игроков в Supabase
+          if (playerSeriesStats?.team1 && Array.isArray(playerSeriesStats.team1)) {
+              for (const player of playerSeriesStats.team1) {
+                  console.log('Saving team1 player:', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                  await window.csApi.savePlayerMatch({
+                      player_name: player.name,
+                      team_name: t1.name,
+                      opponent: t2.name,
+                      match_date: date,
+                      result: entry1.result,
+                      score: scoreStr,
+                      rating: parseFloat(player.rating2),
+                      kills: player.kills || 0,
+                      deaths: player.deaths || 0,
+                      adr: parseFloat(player.adr) || 0
+                  });
+              }
+          }
+          if (playerSeriesStats?.team2 && Array.isArray(playerSeriesStats.team2)) {
+              for (const player of playerSeriesStats.team2) {
+                  console.log('Saving team2 player:', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                  await window.csApi.savePlayerMatch({
+                      player_name: player.name,
+                      team_name: t2.name,
+                      opponent: t1.name,
+                      match_date: date,
+                      result: entry2.result,
+                      score: entry2.score,
+                      rating: parseFloat(player.rating2),
+                      kills: player.kills || 0,
+                      deaths: player.deaths || 0,
+                      adr: parseFloat(player.adr) || 0
+                  });
+              }
+          }
+      } else {
+          console.log('Saving via localStorage...');
+          savedTeams[idx1] = t1;
+          savedTeams[idx2] = t2;
+          await writeSavedTeams(savedTeams);
+          console.log('Teams saved to localStorage');
+      }
+      
+      console.log('updateTeamRatings completed successfully');
+    } catch (e) {
+      console.error('Fatal error in updateTeamRatings:', e);
     }
 }
 
@@ -840,6 +855,7 @@ async function startLiveMatch() {
   const maxMaps = matchFormat === 'BO1' ? 1 : matchFormat === 'BO3' ? 3 : 5;
   const winsNeeded = Math.ceil(maxMaps / 2);
   let team1Wins = 0, team2Wins = 0, map = 1;
+  let mvpMatch = null; // Глобальная переменная для MVP матча
 
   let scoreDisplay = document.getElementById('matchScore');
   if (!scoreDisplay) {
@@ -909,7 +925,7 @@ async function startLiveMatch() {
             if (mr.team2Stats) allMatchStats.push(...mr.team2Stats);
           });
           
-          let mvpMatch = null;
+          mvpMatch = null; // Присваиваем внешней переменной
           if (allMatchStats.length > 0) {
             // Группируем статистику по игрокам для вычисления среднего рейтинга
             const playerStatsMap = {};
@@ -1111,7 +1127,9 @@ async function startLiveMatch() {
             // === ВАЖНО: обновляем рейтинг ТОЛЬКО если включен режим rated ===
             if (isRated) {
               try {
-                await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore, playerSeriesRatings, { team1: team1Rows, team2: team2Rows });
+                console.log('Updating ratings with:', { team1Name, team2Name, finalWinner, playerSeriesRatings, team1Rows, team2Rows, mvpMatch });
+                await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore, playerSeriesRatings, { team1: team1Rows, team2: team2Rows }, mvpMatch);
+                console.log('Ratings updated successfully');
                 // Обновим таблицы/профили *после* гарантированного записи localStorage
                 if (typeof window.updateRatingsTable === 'function') {
                   window.updateRatingsTable();
@@ -1122,6 +1140,8 @@ async function startLiveMatch() {
               } catch (e) {
                 console.error('Error updating ratings after match:', e);
               }
+            } else {
+              console.log('Match is NOT rated, skipping rating update');
             }
           })();
         }
