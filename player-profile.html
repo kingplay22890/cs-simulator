@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профиль игрока</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-200">
+  <div class="container mx-auto p-6">
+    <!-- Шапка с ником и фото -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg">
+      <div class="flex items-center gap-6">
+        <div class="player-photo-wrapper">
+          <img id="playerPhoto" src="https://via.placeholder.com/128" alt="Фото" class="w-32 h-32 rounded-lg object-cover">
+          <div id="playerPhotoPlaceholder" class="w-32 h-32 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-3xl font-bold text-white" style="display:none;"></div>
+        </div>
+        <div class="flex-1">
+          <h1 id="playerName" class="text-4xl font-bold mb-2">Загружаю...</h1>
+          <div class="flex gap-6 text-lg">
+            <div>
+              <span class="text-gray-400">Команда:</span>
+              <a id="playerTeam" href="#" class="text-blue-400 hover:text-blue-300 ml-2">-</a>
+            </div>
+            <div>
+              <span class="text-gray-400">Матчей:</span>
+              <span id="playerMatches" class="text-green-400 ml-2">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="grid grid-cols-5 gap-4 mb-6">
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-gray-400 text-sm">Средний рейтинг</div>
+        <div id="avgRating" class="text-3xl font-bold text-blue-400 mt-2">0.00</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-gray-400 text-sm">Побед</div>
+        <div id="playerWins" class="text-3xl font-bold text-green-400 mt-2">0</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-gray-400 text-sm">Win Rate</div>
+        <div id="playerWinRate" class="text-3xl font-bold text-yellow-400 mt-2">0%</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-gray-400 text-sm">Лучший рейтинг</div>
+        <div id="playerBestRating" class="text-3xl font-bold text-purple-400 mt-2">0.00</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-gray-400 text-sm">MVP</div>
+        <div id="playerMvp" class="text-3xl font-bold text-orange-400 mt-2">0</div>
+      </div>
+    </div>
+
+    <!-- Награды -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">Награды</h2>
+        <button id="editAwardsBtn" class="text-blue-400 hover:text-blue-300 text-xl" title="Редактировать награды">✏️</button>
+      </div>
+      <div id="playerAwardsList" class="flex flex-wrap gap-6"></div>
+    </div>
+
+    <!-- Подробная статистика -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6">
+      <h2 class="text-2xl font-bold mb-4">Подробная статистика</h2>
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600 transition">
+          <div class="text-gray-400 text-sm">Всего убийств</div>
+          <div id="totalKills" class="text-3xl font-bold text-red-400 mt-2">0</div>
+        </div>
+        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600 transition">
+          <div class="text-gray-400 text-sm">Всего смертей</div>
+          <div id="totalDeaths" class="text-3xl font-bold text-gray-400 mt-2">0</div>
+        </div>
+        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600 transition">
+          <div class="text-gray-400 text-sm">K/D</div>
+          <div id="kdRatio" class="text-3xl font-bold text-cyan-400 mt-2">0.00</div>
+        </div>
+        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600 transition">
+          <div class="text-gray-400 text-sm">ADR</div>
+          <div id="avgAdr" class="text-3xl font-bold text-lime-400 mt-2">0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Матчи -->
+    <div class="bg-gray-800 rounded-lg p-6">
+      <h2 class="text-2xl font-bold mb-4">История матчей</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-700">
+              <th class="text-left px-4 py-2 text-gray-400">Дата</th>
+              <th class="text-left px-4 py-2 text-gray-400">Команда</th>
+              <th class="text-left px-4 py-2 text-gray-400">Соперник</th>
+              <th class="text-left px-4 py-2 text-gray-400">Результат</th>
+              <th class="text-left px-4 py-2 text-gray-400">Рейтинг</th>
+              <th class="text-left px-4 py-2 text-gray-400">K/D</th>
+              <th class="text-left px-4 py-2 text-gray-400">ADR</th>
+              <th class="text-left px-4 py-2 text-gray-400">MVP</th>
+            </tr>
+          </thead>
+          <tbody id="matchesBody">
+            <tr><td colspan="8" class="text-center py-4 text-gray-500">Нет матчей</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- График рейтинга -->
+    <div class="bg-gray-800 rounded-lg p-6 mt-6">
+      <h2 class="text-2xl font-bold mb-4">График рейтинга</h2>
+      <canvas id="ratingChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Модальное окно редактирования наград -->
+  <div id="editAwardsModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-700">
+      <div class="sticky top-0 bg-gray-900 border-b border-gray-700 p-6 flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-white">Редактирование наград</h2>
+        <button onclick="closeEditAwardsModal()" class="text-gray-400 hover:text-white text-2xl">✕</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between mb-3">
+          <label class="block text-sm font-semibold text-gray-300">Награды</label>
+          <button onclick="addAwardRow()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition">
+            + Добавить награду
+          </button>
+        </div>
+        <div id="awardsEditList" class="space-y-3">
+          <!-- Строки наград будут добавлены сюда -->
+        </div>
+        <div class="flex gap-3 pt-4 border-t border-gray-700">
+          <button onclick="savePlayerAwards()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+            ✓ Сохранить
+          </button>
+          <button onclick="closeEditAwardsModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition">
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/player-awards-store.js"></script>
+  <script src="js/player-profile.js"></script>
+</body>
+</html>

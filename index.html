@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS Match Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-4">
+    <div class="bg-gray-800 p-8 rounded-xl shadow-lg max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-8 tracking-tight">CS Match Simulator</h1>
+
+        <!-- Match Format -->
+        <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            <label for="matchFormat" class="block text-sm font-medium mb-2">Match Format</label>
+            <select id="matchFormat" class="p-2 w-full bg-gray-700 rounded-md text-white">
+                <option value="BO1">BO1 (1 Map)</option>
+                <option value="BO3">BO3 (Best of 3)</option>
+                <option value="BO5">BO5 (Best of 5)</option>
+            </select>
+        </div>
+
+        <!-- Simulation Speed -->
+        <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            <label for="simSpeed" class="block text-sm font-medium mb-2">Simulation Speed</label>
+            <select id="simSpeed" class="p-2 w-full bg-gray-700 rounded-md text-white">
+                <option value="normal">Normal (1.8s per round)</option>
+                <option value="fast">Fast (0.5s per round)</option>
+                <option value="instant">Instant (no delay)</option>
+            </select>
+        </div>
+
+        <!-- Rated Match Checkbox -->
+        <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="ratedMatch" checked class="form-checkbox h-5 w-5 text-blue-600">
+                <span class="ml-2 text-sm font-medium">Rated Match (update ratings)</span>
+            </label>
+        </div>
+
+        <!-- Team 1 Input -->
+        <div class="mb-6 p-6 bg-gradient-to-br from-blue-900/20 to-purple-900/20 rounded-xl border border-blue-700/30">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300">Team 1</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="team1Name" class="block text-sm font-medium">Team Name</label>
+                    <input type="text" id="team1Name" placeholder="Team A" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                </div>
+                <div>
+                    <label for="team1Chance" class="block text-sm font-medium">Win Chance (%)</label>
+                    <input type="number" id="team1Chance" placeholder="60" min="0" max="100" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                </div>
+            </div>
+            <div class="mt-4">
+                <label for="team1LogoUrl" class="block text-sm font-medium">Team Logo (URL)</label>
+                <input type="url" id="team1LogoUrl" placeholder="https://example.com/logo.png" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+            </div>
+            <div class="mt-4">
+                <label for="team1LogoFile" class="block text-sm font-medium">Team Logo (File)</label>
+                <input type="file" id="team1LogoFile" accept="image/*" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+            </div>
+            <img id="team1LogoPreview" class="mt-2 team-logo" src="" alt="Team 1 Logo Preview">
+            <div class="mt-4 flex space-x-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium mb-2">Search & Load Team</label>
+                    <div class="relative team-search-input-wrapper">
+                        <input type="text" id="team1Search" placeholder="Search team by name..." 
+                               class="p-2 w-full bg-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               autocomplete="off">
+                        <div id="team1Dropdown" class="hidden absolute z-50 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto team-search-dropdown">
+                            <!-- Dropdown items will be inserted here -->
+                        </div>
+                    </div>
+                    <!-- Hidden select for backward compatibility -->
+                    <select id="team1Load" class="hidden" onchange="loadTeam(1)">
+                        <option value="">Select a saved team</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"> </label>
+                    <button onclick="saveTeam(1)" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition">Save Team</button>
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium mb-2">Players (Name, Rating 0-2.0, Photo URL)</label>
+                <div id="team1Players">
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player A1" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.2" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/a1.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player A2" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.1" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/a2.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player A3" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.0" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/a3.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player A4" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="0.9" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/a4.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player A5" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="0.8" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/a5.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team 2 Input -->
+        <div class="mb-6 p-6 bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-xl border border-purple-700/30">
+            <h2 class="text-2xl font-semibold mb-4 text-purple-300">Team 2</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="team2Name" class="block text-sm font-medium">Team Name</label>
+                    <input type="text" id="team2Name" placeholder="Team B" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                </div>
+                <div>
+                    <label for="team2Chance" class="block text-sm font-medium">Win Chance (%)</label>
+                    <input type="number" id="team2Chance" placeholder="40" min="0" max="100" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                </div>
+            </div>
+            <div class="mt-4">
+                <label for="team2LogoUrl" class="block text-sm font-medium">Team Logo (URL)</label>
+                <input type="url" id="team2LogoUrl" placeholder="https://example.com/logo.png" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+            </div>
+            <div class="mt-4">
+                <label for="team2LogoFile" class="block text-sm font-medium">Team Logo (File)</label>
+                <input type="file" id="team2LogoFile" accept="image/*" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+            </div>
+            <img id="team2LogoPreview" class="mt-2 team-logo" src="" alt="Team 2 Logo Preview">
+            <div class="mt-4 flex space-x-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium mb-2">Search & Load Team</label>
+                    <div class="relative team-search-input-wrapper">
+                        <input type="text" id="team2Search" placeholder="Search team by name..." 
+                               class="p-2 w-full bg-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                               autocomplete="off">
+                        <div id="team2Dropdown" class="hidden absolute z-50 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto team-search-dropdown">
+                            <!-- Dropdown items will be inserted here -->
+                        </div>
+                    </div>
+                    <!-- Hidden select for backward compatibility -->
+                    <select id="team2Load" class="hidden" onchange="loadTeam(2)">
+                        <option value="">Select a saved team</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"> </label>
+                    <button onclick="saveTeam(2)" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition">Save Team</button>
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium mb-2">Players (Name, Rating 0-2.0, Photo URL)</label>
+                <div id="team2Players">
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player B1" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.2" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/b1.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player B2" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.1" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/b2.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player B3" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="1.0" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/b3.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player B4" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="0.9" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/b4.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mb-2">
+                        <input type="text" placeholder="Player B5" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="number" step="0.1" min="0" max="2" placeholder="0.8" class="p-2 bg-gray-700 rounded-md text-white">
+                        <input type="url" placeholder="https://example.com/b5.jpg" class="p-2 bg-gray-700 rounded-md text-white">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-3 mt-8">
+            <button onclick="startLiveMatch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
+                🎮 Start Live Match
+            </button>
+            <button onclick="resetForms()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
+                🔄 Reset
+            </button>
+            <a href="ratings.html" class="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
+                📊 View Ratings Table
+            </a>
+        </div>
+
+        <div id="liveScore" class="mt-6 text-center text-lg font-semibold hidden"></div>
+        <div id="vetoResults" class="mt-6"></div>
+        <div id="matchScore" class="text-3xl font-bold text-center my-4 text-white">0 - 0</div>
+        <div id="result" class="mt-6 text-center text-lg font-semibold"></div>
+        <div id="stats" class="mt-6 overflow-x-auto"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/map-utils.js"></script>
+    <script src="js/script.js"></script>
+    <script>
+// Глобальная функция для обновления
+window.updateRatingsTable = function() {
+  // Будет переопределена в ratings.js
+};
+</script>
+<script src="js/script.js"></script>
+</body>
+</html>
