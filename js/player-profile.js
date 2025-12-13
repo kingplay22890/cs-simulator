@@ -17,46 +17,21 @@ async function loadAllTeams() {
 }
 
 async function fetchPlayerStats(playerName) {
-  // Сначала всегда пересчитываем статистику из локальных данных,
-  // чтобы UI показывал актуальные цифры даже если в Supabase старые значения.
-  const aggregatedStats = aggregatePlayerStats(playerName);
-
   try {
+    // Сначала пытаемся получить из Supabase
     if (window.csApi && window.csApi.fetchPlayerStats) {
       const supabaseStats = await window.csApi.fetchPlayerStats(playerName);
       if (supabaseStats) {
-        // Объединяем награды: приоритет у наград из БД (созданных пользователем), затем добавляем награды команды
-        const dbAwards = Array.isArray(supabaseStats.awards) ? supabaseStats.awards : [];
-        const localAwards = Array.isArray(aggregatedStats.awards) ? aggregatedStats.awards : [];
-        // Начинаем с наград из БД (они имеют приоритет)
-        const mergedAwards = [...dbAwards];
-        // Добавляем награды команды только если их нет в БД
-        localAwards.forEach(award => {
-          const exists = mergedAwards.some(a => a.name === award.name && a.img === award.img);
-          if (!exists) {
-            mergedAwards.push(award);
-          }
-        });
-        
-        return {
-          ...supabaseStats,
-          ...aggregatedStats,
-          // Берём фото и команду из Supabase только если их нет в локальных данных
-          photo_url: aggregatedStats.photo_url || supabaseStats.photo_url || null,
-          current_team: aggregatedStats.current_team || supabaseStats.current_team || null,
-          // Статус всегда берём из локальных данных (более актуальный)
-          status: aggregatedStats.status || supabaseStats.status || 'active',
-          // Объединённые награды (приоритет у наград из БД)
-          awards: mergedAwards,
-          match_history: aggregatedStats.match_history
-        };
+        return supabaseStats;
       }
     }
+    
+    // Fallback: собираем статистику из localStorage
+    return aggregatePlayerStats(playerName);
   } catch (error) {
     console.error('Error fetching player stats:', error);
+    return aggregatePlayerStats(playerName);
   }
-
-  return aggregatedStats;
 }
 
 function aggregatePlayerStats(playerName) {
@@ -66,16 +41,13 @@ function aggregatePlayerStats(playerName) {
   let ratingCount = 0;
   let bestRating = 0;
   let matchHistory = [];
-  let currentTeam = null;      // команда по данным матчей (где он играл)
-  let rosterTeam = null;       // команда, в ростере которой он сейчас числится
+  let currentTeam = null;
   let photoUrl = null;
   let mvpCount = 0;
   let totalKills = 0;
   let totalDeaths = 0;
   let totalAdr = 0;
   let adrCount = 0;
-  let playerStatus = 'active'; // По умолчанию active
-  let playerAwards = []; // Награды игрока
 
   allTeams.forEach(team => {
     if (!Array.isArray(team.history)) return;
@@ -101,11 +73,8 @@ function aggregatePlayerStats(playerName) {
         
         totalKills += kills;
         totalDeaths += deaths;
-        const adrValue = parseFloat(adr);
-        if (!isNaN(adrValue) && adrValue > 0) {
-          totalAdr += adrValue;
-          adrCount++;
-        }
+        totalAdr += parseFloat(adr) || 0;
+        adrCount++;
 
         if (match.result === 'Win') wins++;
 
@@ -126,44 +95,20 @@ function aggregatePlayerStats(playerName) {
           adr: adr
         });
 
-        // Команда, за которую он играл в конкретном матче
         currentTeam = team.name;
       }
     });
 
-    // Ищем фото игрока, статус и награды в составе команды
+    // Ищем фото игрока в составе команды
     if (team.players && Array.isArray(team.players)) {
       const player = team.players.find(p => 
         (p.name || '').toLowerCase().trim() === playerName.toLowerCase().trim()
       );
-      if (player) {
-        if (player.photoUrl && !photoUrl) {
-          photoUrl = player.photoUrl;
-        }
-        // Фиксируем команду из текущего ростера (имеет приоритет над историей матчей)
-        rosterTeam = team.name;
-        // Определяем статус игрока (приоритет у последней найденной записи в ростере)
-        if (player.status) {
-          playerStatus = player.status;
-        }
-        // Если игрок в команде, добавляем награды команды
-        if (team.awards && Array.isArray(team.awards) && team.awards.length > 0) {
-          // Объединяем награды команды с уже собранными (избегаем дубликатов)
-          team.awards.forEach(award => {
-            const exists = playerAwards.some(a => a.name === award.name && a.img === award.img);
-            if (!exists) {
-              playerAwards.push({ ...award });
-            }
-          });
-        }
+      if (player && player.photoUrl && !photoUrl) {
+        photoUrl = player.photoUrl;
       }
     }
   });
-
-  if (window.playerAwardsStore) {
-    const storedAwards = window.playerAwardsStore.getAwards(playerName);
-    playerAwards = window.playerAwardsStore.mergeAwards(playerAwards, storedAwards);
-  }
 
   const avgRating = ratingCount > 0 ? (ratingSum / ratingCount).toFixed(2) : 0;
   const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
@@ -172,8 +117,7 @@ function aggregatePlayerStats(playerName) {
 
   return {
     player_name: playerName,
-    // Приоритет: команда из текущего ростера, затем — из истории матчей
-    current_team: rosterTeam || currentTeam,
+    current_team: currentTeam,
     total_matches: totalMatches,
     wins: wins,
     avg_rating: parseFloat(avgRating),
@@ -185,8 +129,6 @@ function aggregatePlayerStats(playerName) {
     total_deaths: totalDeaths,
     kd_ratio: parseFloat(kdRatio),
     avg_adr: parseFloat(avgAdr),
-    status: playerStatus,
-    awards: playerAwards,
     match_history: matchHistory.sort((a, b) => new Date(b.date) - new Date(a.date))
   };
 }
@@ -215,20 +157,12 @@ async function showPlayerProfile() {
       total_kills: playerData.total_kills,
       total_deaths: playerData.total_deaths,
       kd_ratio: playerData.kd_ratio,
-      avg_adr: playerData.avg_adr,
-      status: playerData.status || 'active',
-      awards: playerData.awards || []
+      avg_adr: playerData.avg_adr
     });
   }
 
   // Обновляем UI
-  const playerNameEl = document.getElementById('playerName');
-  const playerStatus = playerData.status || 'active';
-  if (playerStatus === 'benched') {
-    playerNameEl.innerHTML = `${playerData.player_name} <span class="benched-badge ml-3">BENCHED</span>`;
-  } else {
-    playerNameEl.textContent = playerData.player_name;
-  }
+  document.getElementById('playerName').textContent = playerData.player_name;
   document.getElementById('playerMatches').textContent = playerData.total_matches;
   document.getElementById('avgRating').textContent = playerData.avg_rating.toFixed(2);
   document.getElementById('playerWins').textContent = playerData.wins;
@@ -241,9 +175,6 @@ async function showPlayerProfile() {
   document.getElementById('totalDeaths').textContent = playerData.total_deaths;
   document.getElementById('kdRatio').textContent = playerData.kd_ratio.toFixed(2);
   document.getElementById('avgAdr').textContent = playerData.avg_adr.toFixed(2);
-
-  // Награды
-  renderPlayerAwards(playerData.awards || []);
 
   // Ссылка на команду
   const teamLink = document.getElementById('playerTeam');
@@ -368,147 +299,4 @@ function renderRatingChart(matches) {
   });
 }
 
-// Функции для работы с наградами
-function renderPlayerAwards(awards) {
-  const container = document.getElementById('playerAwardsList');
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (!Array.isArray(awards) || awards.length === 0) {
-    container.innerHTML = '<span class="text-gray-400">Нет наград</span>';
-    return;
-  }
-  
-  awards.forEach(award => {
-    const el = document.createElement('div');
-    el.className = 'flex flex-col items-center w-20';
-    el.innerHTML = `
-      <div class="text-4xl">${award.img ? `<img src='${award.img}' alt='${award.name}' class='w-14 h-14 object-contain'>` : '🏆'}</div>
-      <div class="text-xs mt-1 text-center">${award.name || ''}</div>
-    `;
-    container.appendChild(el);
-  });
-}
-
-let currentPlayerAwards = [];
-
-function openEditAwardsModal() {
-  const modal = document.getElementById('editAwardsModal');
-  if (!modal) return;
-  
-  currentPlayerAwards = Array.isArray(playerData?.awards) ? [...playerData.awards] : [];
-  renderAwardsEditList();
-  modal.classList.remove('hidden');
-}
-
-function closeEditAwardsModal() {
-  const modal = document.getElementById('editAwardsModal');
-  if (modal) modal.classList.add('hidden');
-}
-
-function renderAwardsEditList() {
-  const container = document.getElementById('awardsEditList');
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (currentPlayerAwards.length === 0) {
-    currentPlayerAwards.push({ name: '', img: '🏆' });
-  }
-  
-  currentPlayerAwards.forEach((award, idx) => {
-    const div = document.createElement('div');
-    div.className = 'bg-gray-700 p-3 rounded space-y-2';
-    div.innerHTML = `
-      <div class="flex gap-2">
-        <div class="flex-1">
-          <label class="text-xs text-gray-400">Название</label>
-          <input type="text" class="awardEditName w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" value="${award.name || ''}" placeholder="Название награды">
-        </div>
-        <div class="flex-1">
-          <label class="text-xs text-gray-400">URL или эмодзи</label>
-          <input type="text" class="awardEditImg w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm" value="${award.img || '🏆'}" placeholder="URL или эмодзи">
-        </div>
-        <div class="flex items-end">
-          <button onclick="deleteAwardRow(${idx})" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition">
-            ✕
-          </button>
-        </div>
-      </div>
-    `;
-    container.appendChild(div);
-  });
-}
-
-function addAwardRow() {
-  currentPlayerAwards.push({ name: '', img: '🏆' });
-  renderAwardsEditList();
-}
-
-function deleteAwardRow(idx) {
-  if (currentPlayerAwards.length > idx) {
-    currentPlayerAwards.splice(idx, 1);
-    renderAwardsEditList();
-  }
-}
-
-async function savePlayerAwards() {
-  const nameInputs = document.querySelectorAll('.awardEditName');
-  const imgInputs = document.querySelectorAll('.awardEditImg');
-  
-  const awards = [];
-  nameInputs.forEach((nameInput, idx) => {
-    const name = nameInput.value.trim();
-    if (name) {
-      awards.push({
-        name: name,
-        img: imgInputs[idx]?.value.trim() || '🏆'
-      });
-    }
-  });
-  
-  // Обновляем данные игрока
-  if (playerData) {
-    let updatedAwards = awards;
-
-    if (window.playerAwardsStore && typeof window.playerAwardsStore.replaceAwards === 'function') {
-      updatedAwards = await window.playerAwardsStore.replaceAwards(playerData.player_name, awards, playerData);
-    } else if (window.csApi && window.csApi.updatePlayerStats) {
-      const result = await window.csApi.updatePlayerStats(playerData.player_name, {
-        current_team: playerData.current_team,
-        total_matches: playerData.total_matches,
-        wins: playerData.wins,
-        avg_rating: playerData.avg_rating,
-        best_rating: playerData.best_rating,
-        win_rate: playerData.win_rate,
-        total_kills: playerData.total_kills,
-        total_deaths: playerData.total_deaths,
-        kd_ratio: playerData.kd_ratio,
-        avg_adr: playerData.avg_adr,
-        status: playerData.status || 'active',
-        awards
-      });
-      if (result && Array.isArray(result.awards)) {
-        updatedAwards = result.awards;
-      }
-    }
-
-    playerData.awards = updatedAwards;
-    renderPlayerAwards(updatedAwards);
-    closeEditAwardsModal();
-    alert('Награды сохранены!');
-  }
-}
-
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-  showPlayerProfile();
-  
-  // Инициализация кнопки редактирования наград
-  const editBtn = document.getElementById('editAwardsBtn');
-  if (editBtn) {
-    editBtn.addEventListener('click', openEditAwardsModal);
-  }
-});
-
+document.addEventListener('DOMContentLoaded', showPlayerProfile);

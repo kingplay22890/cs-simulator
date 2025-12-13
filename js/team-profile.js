@@ -314,29 +314,6 @@ function deleteTrophyRow(idx) {
   }
 }
 
-async function propagateTeamAwardsToPlayers(team) {
-  if (
-    !team ||
-    !Array.isArray(team.awards) ||
-    team.awards.length === 0 ||
-    !Array.isArray(team.players) ||
-    team.players.length === 0 ||
-    !window.playerAwardsStore ||
-    typeof window.playerAwardsStore.addAwards !== 'function'
-  ) {
-    return;
-  }
-
-  for (const player of team.players) {
-    if (!player || !player.name) continue;
-    try {
-      await window.playerAwardsStore.addAwards(player.name, team.awards);
-    } catch (error) {
-      console.warn(`Не удалось обновить награды для ${player.name}`, error);
-    }
-  }
-}
-
 async function saveTeamEdit() {
   const team = window.currentEditingTeam;
   if (!team) return;
@@ -381,8 +358,6 @@ async function saveTeamEdit() {
       });
     }
   });
-
-  await propagateTeamAwardsToPlayers(team);
 
   // Сохраняем
   try {
@@ -715,97 +690,46 @@ async function showTeamProfile(teamNameParam) {
       roster.innerHTML = '';
       if (team.players && team.players.length > 0) {
         if (banner) banner.innerHTML = '';
-        
-        // Разделяем игроков на активных и BENCHED
-        const activePlayers = team.players.filter(p => p.status !== 'benched');
-        const benchedPlayers = team.players.filter(p => p.status === 'benched');
-        
-        // Отображаем всех игроков в списке состава
         team.players.forEach(p => {
           // Элемент состава (как было раньше, но с улучшенным дизайном)
           const div = document.createElement('div');
-          div.className = 'flex items-center justify-between py-2 roster-item cursor-pointer hover:bg-gray-700/50 rounded px-2 transition';
+          div.className = 'flex items-center justify-between py-2 roster-item';
           const stat = (typeof p.rating2Avg === 'number') ? p.rating2Avg.toFixed(2) : (!isNaN(parseFloat(p.rating)) ? String(parseFloat(p.rating)) : '1.00');
           const matchesInfo = (typeof p.rating2Matches === 'number' && p.rating2Matches > 0) ? ` <span class=\"text-xs text-gray-400\">(${p.rating2Matches})</span>` : '';
           const img = p.photoUrl ? `<img src="${p.photoUrl}" class="w-8 h-8 rounded mr-2" alt="${p.name}">` : '';
-          const statusBadge = p.status === 'benched' ? '<span class="ml-3 px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-sm font-bold rounded-lg shadow-lg animate-pulse border-2 border-yellow-400">BENCHED</span>' : '';
-          const playerLink = `player-profile.html?player=${encodeURIComponent(p.name)}`;
+          const statusBadge = p.status === 'benched' ? '<span class="ml-2 px-2 py-0.5 bg-yellow-600 text-xs rounded font-semibold">BENCHED</span>' : '';
           div.innerHTML = `
-            <a href="${playerLink}" class="flex items-center flex-1 hover:text-blue-400 transition">${img} <span>${p.name}</span>${statusBadge}</a>
+            <div class="flex items-center">${img} ${p.name}${statusBadge}</div>
             <span>${stat}${matchesInfo}</span>
           `;
           roster.appendChild(div);
-        });
-        
-        // Баннер: приоритет активных игроков, затем BENCHED, затем пустые слоты
-        if (banner) {
-          const PLACEHOLDER_IMAGE = 'https://www.hltv.org/img/static/player/player_silhouette.png';
-          const MAX_BANNER_PLAYERS = 5;
-          
-          const bannerPlayers = [...activePlayers];
-          if (bannerPlayers.length < MAX_BANNER_PLAYERS && benchedPlayers.length > 0) {
-            bannerPlayers.push(...benchedPlayers.slice(0, MAX_BANNER_PLAYERS - bannerPlayers.length));
-          }
-          
-          const displayedPlayers = bannerPlayers.slice(0, MAX_BANNER_PLAYERS);
-          displayedPlayers.forEach(p => {
-            const isBenched = p.status === 'benched';
+          // Элемент баннера: только фото и ник со ссылкой на профиль
+          if (banner) {
             const b = document.createElement('div');
-            b.className = `player-banner-item flex flex-col items-center${isBenched ? ' benched' : ''}`;
+            b.className = 'player-banner-item flex flex-col items-center';
             const photo = p.photoUrl || '';
             const hasPhoto = photo && photo.trim() !== '';
             const photoHtml = hasPhoto 
               ? `<img src="${photo}" class="player-banner-photo mb-2" alt="${p.name}" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.nextElementSibling; if(placeholder) { placeholder.style.display='flex'; placeholder.style.visibility='visible'; }">`
               : '';
             const placeholderHtml = `<div class="player-banner-photo-placeholder mb-2" style="${hasPhoto ? 'display:none; visibility:hidden;' : 'display:flex; visibility:visible;'}">${p.name.charAt(0).toUpperCase()}</div>`;
-            const playerLinkStart = `<a href="player-profile.html?player=${encodeURIComponent(p.name)}" class="text-blue-400 hover:text-blue-300 hover:underline">`;
+            const playerLink = `<a href="player-profile.html?player=${encodeURIComponent(p.name)}" class="text-blue-400 hover:text-blue-300 hover:underline">`;
             const playerLinkEnd = `</a>`;
-            const benchedFlag = isBenched ? '<span class="benched-flag">BENCHED</span>' : '';
             b.innerHTML = `
               <div class="player-banner-photo-wrapper flex flex-col items-center">
                 ${photoHtml}
                 ${placeholderHtml}
               </div>
-              <div class="player-banner-name text-center w-full">${playerLinkStart}${p.name}${playerLinkEnd}</div>
-              ${benchedFlag}
-            `;
-            banner.appendChild(b);
-          });
-          
-          const emptySlots = Math.max(0, MAX_BANNER_PLAYERS - displayedPlayers.length);
-          for (let i = 0; i < emptySlots; i++) {
-            const b = document.createElement('div');
-            b.className = 'player-banner-item flex flex-col items-center';
-            b.innerHTML = `
-              <div class="player-banner-photo-wrapper flex flex-col items-center">
-                <img src="${PLACEHOLDER_IMAGE}" class="player-banner-photo mb-2" alt="?" style="opacity: 0.6;">
-              </div>
-              <div class="player-banner-name text-center w-full text-gray-500">?</div>
+              <div class="player-banner-name text-center w-full">${playerLink}${p.name}${playerLinkEnd}</div>
             `;
             banner.appendChild(b);
           }
-        }
+        });
       } else {
         roster.innerHTML = '<p class="text-gray-500 col-span-2">Нет данных о составе</p>';
-        if (banner) {
-          banner.innerHTML = '';
-          // Если нет игроков, показываем 5 пустых слотов
-          const PLACEHOLDER_IMAGE = 'https://www.hltv.org/img/static/player/player_silhouette.png';
-          for (let i = 0; i < 5; i++) {
-            const b = document.createElement('div');
-            b.className = 'player-banner-item flex flex-col items-center';
-            b.innerHTML = `
-              <div class="player-banner-photo-wrapper flex flex-col items-center">
-                <img src="${PLACEHOLDER_IMAGE}" class="player-banner-photo mb-2" alt="?" style="opacity: 0.6;">
-              </div>
-              <div class="player-banner-name text-center w-full text-gray-500">?</div>
-            `;
-            banner.appendChild(b);
-          }
-        }
+        if (banner) banner.innerHTML = '';
       }
     }
-    renderMapStats(team);
     // История матчей с логотипами соперников
     const tbody = document.getElementById('historyBody');
     const historyToggleBtn = document.getElementById('toggleHistoryBtn');
@@ -820,8 +744,7 @@ async function showTeamProfile(teamNameParam) {
       } else {
         history.forEach((m, index) => {
           const row = document.createElement('tr');
-          row.className = `history-row ${index >= HISTORY_SHOW_INITIAL ? 'history-hidden' : ''} cursor-pointer hover:bg-gray-700/50 transition`;
-          row.setAttribute('data-match-index', index);
+          row.className = `history-row ${index >= HISTORY_SHOW_INITIAL ? 'history-hidden' : ''}`;
           
           // Находим соперника для получения логотипа
           const opponentTeam = allTeams.find(t => normalizeName(t.name) === normalizeName(m.opponent || ''));
@@ -846,12 +769,6 @@ async function showTeamProfile(teamNameParam) {
             <td class="p-3 font-mono font-semibold">${m.score || 'N/A'}</td>
             <td class="p-3 ${changeColor} font-bold">${m.ratingChange >= 0 ? '+' : ''}${m.ratingChange || 0}</td>
           `;
-          
-          // Добавляем обработчик клика
-          row.addEventListener('click', () => {
-            showMatchDetails(m, team, opponentTeam);
-          });
-          
           tbody.appendChild(row);
         });
         
@@ -891,176 +808,6 @@ async function showTeamProfile(teamNameParam) {
     console.error('Error rendering team profile:', error);
     const profileContainer = document.getElementById('profile');
     if (profileContainer) profileContainer.classList.add('hidden');
-  }
-}
-
-function calculateMapStatsFromHistory(history) {
-  const stats = {};
-  let totalMaps = 0;
-  (history || []).forEach(match => {
-    if (!Array.isArray(match.mapDetails)) return;
-    match.mapDetails.forEach(detail => {
-      if (!detail || !detail.name) return;
-      const key = detail.name;
-      if (!stats[key]) {
-        stats[key] = {
-          name: detail.name,
-          wins: 0,
-          losses: 0,
-          played: 0,
-          roundsFor: 0,
-          roundsAgainst: 0,
-          biggestWin: null,
-          biggestLoss: null,
-          biggestWinDiff: null,
-          biggestLossDiff: null
-        };
-      }
-      const entry = stats[key];
-      entry.played += 1;
-      totalMaps += 1;
-      const teamScore = typeof detail.teamScore === 'number' ? detail.teamScore : 0;
-      const opponentScore = typeof detail.opponentScore === 'number' ? detail.opponentScore : 0;
-      entry.roundsFor += teamScore;
-      entry.roundsAgainst += opponentScore;
-      const diff = teamScore - opponentScore;
-      if (detail.result === 'Win') {
-        entry.wins += 1;
-        if (entry.biggestWinDiff === null || diff > entry.biggestWinDiff) {
-          entry.biggestWinDiff = diff;
-          entry.biggestWin = `${teamScore}-${opponentScore}`;
-          entry.biggestWinOpponent = match.opponent || '';
-        }
-      } else {
-        entry.losses += 1;
-        if (entry.biggestLossDiff === null || diff < entry.biggestLossDiff) {
-          entry.biggestLossDiff = diff;
-          entry.biggestLoss = `${teamScore}-${opponentScore}`;
-          entry.biggestLossOpponent = match.opponent || '';
-        }
-      }
-    });
-  });
-
-  const list = Object.values(stats).map(item => ({
-    ...item,
-    winRate: item.played ? +(item.wins / item.played * 100).toFixed(1) : 0,
-    pickRate: totalMaps ? +(item.played / totalMaps * 100).toFixed(1) : 0,
-    avgRounds: item.played ? +((item.roundsFor + item.roundsAgainst) / item.played).toFixed(1) : 0
-  }));
-  return { totalMaps, list };
-}
-
-function renderMapStats(teamLike) {
-  const section = document.getElementById('mapStatsSection');
-  if (!section) return;
-  const highlightsContainer = document.getElementById('mapHighlights');
-  const cardsContainer = document.getElementById('mapCards');
-  const totalLabel = document.getElementById('mapTotalCount');
-
-  const { totalMaps, list } = calculateMapStatsFromHistory(teamLike?.history || []);
-  
-  // Фильтруем старые карты (Anubis и Vertigo)
-  const activeMapPool = window.mapUtils?.getPool?.() || ['Mirage', 'Dust2', 'Ancient', 'Overpass', 'Train', 'Nuke', 'Inferno'];
-  let filteredList = list.filter(item => {
-    const mapName = item.name || '';
-    // Проверяем, есть ли карта в активном маппуле
-    return activeMapPool.some(activeMap => 
-      activeMap.toLowerCase() === mapName.toLowerCase() ||
-      (activeMap === 'Dust2' && (mapName === 'Dust II' || mapName === 'Dust 2'))
-    );
-  });
-  
-  // Пересчитываем totalMaps только для активных карт
-  const filteredTotalMaps = filteredList.reduce((sum, item) => sum + (item.played || 0), 0);
-  
-  // Пересчитываем pickRate на основе отфильтрованных данных
-  filteredList = filteredList.map(item => ({
-    ...item,
-    pickRate: filteredTotalMaps ? +((item.played || 0) / filteredTotalMaps * 100).toFixed(1) : 0
-  }));
-  
-  if (!filteredTotalMaps || filteredList.length === 0) {
-    section.classList.add('hidden');
-    return;
-  }
-
-  section.classList.remove('hidden');
-  if (totalLabel) totalLabel.textContent = `Всего карт: ${filteredTotalMaps}`;
-
-  const sortedByWinRate = [...filteredList].sort((a, b) => (b.winRate || 0) - (a.winRate || 0)).slice(0, 8);
-  if (highlightsContainer) {
-    highlightsContainer.className = 'map-bar-chart';
-    highlightsContainer.innerHTML = sortedByWinRate.map(item => {
-      const theme = window.mapUtils?.getTheme?.(item.name) || {};
-      const winRate = Math.max(0, Math.min(100, item.winRate || 0));
-      const winRateDisplay = (item.winRate || 0).toFixed(1);
-      return `
-        <div class="map-bar-chart-item">
-          <div class="map-bar-chart-bar-wrapper">
-            <div class="map-bar-chart-bar" style="height: ${winRate}%; background: ${theme.gradient};">
-              <span class="map-bar-chart-value">${winRateDisplay}%</span>
-            </div>
-          </div>
-          <div class="map-bar-chart-label">${item.name || 'Unknown'}</div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  if (cardsContainer) {
-    cardsContainer.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
-    cardsContainer.innerHTML = filteredList.sort((a, b) => b.played - a.played).map(item => {
-      const theme = window.mapUtils?.getTheme?.(item.name) || {};
-      const mapImage = window.mapUtils?.getMapImage?.(item.name);
-      return `
-        <div class="map-card">
-          <div class="map-card-image-wrapper">
-            ${mapImage ? `<img src="${mapImage}" alt="${item.name}" class="map-card-image" onerror="this.style.display='none';">` : ''}
-            <div class="map-card-overlay"></div>
-          </div>
-          <div class="map-card-content">
-            <div class="map-card-header">
-              <div>
-                <div class="text-2xl font-bold mb-1">${item.name}</div>
-                <div class="text-sm text-gray-300">${item.played} карт · ${item.pickRate.toFixed(1)}% pick</div>
-              </div>
-              <span class="map-pill" style="background:${theme.gradient};color:#0f172a;font-weight:700;">${item.winRate.toFixed(1)}% WR</span>
-            </div>
-            <div class="map-card-stats">
-              <div class="map-card-metric">
-                <span class="metric-label">Победы / Поражения</span>
-                <span class="metric-value">
-                  <span style="color: #4ade80; font-weight: 800;">${item.wins}</span>
-                  <span style="color: #64748b; margin: 0 0.25rem;">/</span>
-                  <span style="color: #f87171; font-weight: 800;">${item.losses}</span>
-                </span>
-              </div>
-              <div class="map-card-metric">
-                <span class="metric-label">Сред. раундов</span>
-                <span class="metric-value">${item.avgRounds.toFixed(1)}</span>
-              </div>
-              <div class="map-card-metric">
-                <span class="metric-label">Раунды (за/против)</span>
-                <span class="metric-value">
-                  <span style="color: #60a5fa;">${item.roundsFor}</span>
-                  <span style="color: #64748b; margin: 0 0.25rem;">-</span>
-                  <span style="color: #f87171;">${item.roundsAgainst}</span>
-                </span>
-              </div>
-              <div class="map-card-metric metric-biggest-win">
-                <span class="metric-label">Biggest win</span>
-                <span class="metric-value">${item.biggestWin || '—'} ${item.biggestWinOpponent ? `<span style="color: #94a3b8; font-size: 0.8125rem; font-weight: 600;">vs ${item.biggestWinOpponent}</span>` : ''}</span>
-              </div>
-              <div class="map-card-metric metric-biggest-loss">
-                <span class="metric-label">Biggest loss</span>
-                <span class="metric-value">${item.biggestLoss || '—'} ${item.biggestLossOpponent ? `<span style="color: #94a3b8; font-size: 0.8125rem; font-weight: 600;">vs ${item.biggestLossOpponent}</span>` : ''}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
   }
 }
 
@@ -1336,252 +1083,6 @@ function buildRankingChart(team) {
     }
   });
 }
-
-function showMatchDetails(match, team, opponentTeam) {
-  const modal = document.getElementById('matchDetailsModal');
-  const content = document.getElementById('matchDetailsContent');
-  if (!modal || !content) return;
-
-  const teamLogo = team?.logoUrl || '';
-  const opponentLogo = opponentTeam?.logoUrl || '';
-  const dateDisplay = (match.date || '').toString().slice(0,10) || 'N/A';
-  
-  // Получаем статистику по картам
-  const mapDetails = Array.isArray(match.mapDetails) ? match.mapDetails : [];
-  const playerStats = Array.isArray(match.playerStats) ? match.playerStats : [];
-  const mvp = match.mvp || null;
-
-  // Получаем статистику соперника (нужно найти его команду)
-  let opponentPlayerStats = [];
-  if (opponentTeam && Array.isArray(opponentTeam.history)) {
-    const opponentMatch = opponentTeam.history.find(m => 
-      normalizeName(m.opponent) === normalizeName(team.name) &&
-      m.date === match.date
-    );
-    if (opponentMatch && Array.isArray(opponentMatch.playerStats)) {
-      opponentPlayerStats = opponentMatch.playerStats;
-    }
-  }
-
-  // Рендерим карты
-  const mapsHtml = mapDetails.map((map, index) => {
-    const theme = window.mapUtils?.getTheme?.(map.name) || {};
-    const mapImage = window.mapUtils?.getMapImage?.(map.name);
-    const isWin = map.result === 'Win';
-    
-    return `
-      <div class="match-map-card">
-        <div class="match-map-header" style="background: ${theme.gradient || 'rgba(15,23,42,0.8)'};">
-          <div class="match-map-title">Map ${index + 1}: ${map.name}</div>
-          <div class="match-map-score">
-            <span class="match-score-team ${isWin ? 'match-score-winner' : ''}">${map.teamScore}</span>
-            <span class="match-score-separator">-</span>
-            <span class="match-score-team ${!isWin ? 'match-score-winner' : ''}">${map.opponentScore}</span>
-          </div>
-        </div>
-        <div class="match-map-content">
-          ${mapImage ? `<img src="${mapImage}" alt="${map.name}" class="match-map-image" onerror="this.style.display='none';">` : ''}
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // Рендерим статистику игроков для каждой карты (если есть несколько карт)
-  let playerStatsHtml = '';
-  if (mapDetails.length > 1) {
-    playerStatsHtml = mapDetails.map((map, mapIndex) => {
-      return `
-        <div class="match-map-stats">
-          <div class="match-map-stats-title">Map ${mapIndex + 1}: ${map.name}</div>
-          <div class="match-players-grid">
-            <div class="match-players-team">
-              <div class="match-players-team-header">
-                ${teamLogo ? `<img src="${teamLogo}" alt="${team.name}" class="match-team-logo-small">` : ''}
-                <span>${team.name}</span>
-              </div>
-              <table class="match-players-table">
-                <thead>
-                  <tr>
-                    <th>PLAYER</th>
-                    <th>K</th>
-                    <th>A</th>
-                    <th>D</th>
-                    <th>RATING 2.0</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${playerStats.length > 0 ? playerStats.map(p => `
-                    <tr>
-                      <td class="match-player-name">${p.name || 'Unknown'}</td>
-                      <td>${p.kills || 0}</td>
-                      <td>${p.assists || 0}</td>
-                      <td>${p.deaths || 0}</td>
-                      <td class="match-player-rating">${(p.rating2 || 0).toFixed(2)}</td>
-                    </tr>
-                  `).join('') : '<tr><td colspan="5" class="text-center text-gray-500">Нет данных</td></tr>'}
-                </tbody>
-              </table>
-            </div>
-            <div class="match-players-team">
-              <div class="match-players-team-header">
-                ${opponentLogo ? `<img src="${opponentLogo}" alt="${match.opponent}" class="match-team-logo-small">` : ''}
-                <span>${match.opponent}</span>
-              </div>
-              <table class="match-players-table">
-                <thead>
-                  <tr>
-                    <th>PLAYER</th>
-                    <th>K</th>
-                    <th>A</th>
-                    <th>D</th>
-                    <th>RATING 2.0</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${opponentPlayerStats.length > 0 ? opponentPlayerStats.map(p => `
-                    <tr>
-                      <td class="match-player-name">${p.name || 'Unknown'}</td>
-                      <td>${p.kills || 0}</td>
-                      <td>${p.assists || 0}</td>
-                      <td>${p.deaths || 0}</td>
-                      <td class="match-player-rating">${(p.rating2 || 0).toFixed(2)}</td>
-                    </tr>
-                  `).join('') : '<tr><td colspan="5" class="text-center text-gray-500">Нет данных</td></tr>'}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // Итоговая статистика
-  const totalKills = playerStats.reduce((sum, p) => sum + (p.kills || 0), 0);
-  const totalDeaths = playerStats.reduce((sum, p) => sum + (p.deaths || 0), 0);
-  const totalAssists = playerStats.reduce((sum, p) => sum + (p.assists || 0), 0);
-  const avgRating = playerStats.length > 0 
-    ? (playerStats.reduce((sum, p) => sum + (p.rating2 || 0), 0) / playerStats.length).toFixed(2)
-    : '0.00';
-
-  content.innerHTML = `
-    <div class="match-details-header">
-      <div class="match-details-teams">
-        <div class="match-details-team">
-          ${teamLogo ? `<img src="${teamLogo}" alt="${team.name}" class="match-team-logo">` : ''}
-          <span>${team.name}</span>
-        </div>
-        <div class="match-details-vs">VS</div>
-        <div class="match-details-team">
-          ${opponentLogo ? `<img src="${opponentLogo}" alt="${match.opponent}" class="match-team-logo">` : ''}
-          <span>${match.opponent}</span>
-        </div>
-      </div>
-      <div class="match-details-score">${match.score || 'N/A'}</div>
-      <div class="match-details-date">${dateDisplay}</div>
-      ${mvp ? `
-        <div class="match-details-mvp">
-          <span class="match-mvp-label">MVP:</span>
-          <span class="match-mvp-name">${mvp.name || 'Unknown'}</span>
-          <span class="match-mvp-rating">(Rating ${mvp.avgRating || '0.00'})</span>
-        </div>
-      ` : ''}
-    </div>
-    
-    <div class="match-maps-section">
-      <h3 class="match-section-title">Карты</h3>
-      <div class="match-maps-grid">
-        ${mapsHtml}
-      </div>
-    </div>
-
-    ${playerStatsHtml || ''}
-
-    <div class="match-summary-section">
-      <h3 class="match-section-title">Match Summary</h3>
-      <div class="match-players-grid">
-        <div class="match-players-team">
-          <div class="match-players-team-header">
-            ${teamLogo ? `<img src="${teamLogo}" alt="${team.name}" class="match-team-logo-small">` : ''}
-            <span>${team.name}</span>
-          </div>
-          <table class="match-players-table">
-            <thead>
-              <tr>
-                <th>PLAYER</th>
-                <th>K</th>
-                <th>A</th>
-                <th>D</th>
-                <th>RATING 2.0</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${playerStats.map(p => `
-                <tr>
-                  <td class="match-player-name">${p.name || 'Unknown'}</td>
-                  <td>${p.kills || 0}</td>
-                  <td>${p.assists || 0}</td>
-                  <td>${p.deaths || 0}</td>
-                  <td class="match-player-rating">${(p.rating2 || 0).toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="match-players-team">
-          <div class="match-players-team-header">
-            ${opponentLogo ? `<img src="${opponentLogo}" alt="${match.opponent}" class="match-team-logo-small">` : ''}
-            <span>${match.opponent}</span>
-          </div>
-          <table class="match-players-table">
-            <thead>
-              <tr>
-                <th>PLAYER</th>
-                <th>K</th>
-                <th>A</th>
-                <th>D</th>
-                <th>RATING 2.0</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${opponentPlayerStats.length > 0 ? opponentPlayerStats.map(p => `
-                <tr>
-                  <td class="match-player-name">${p.name || 'Unknown'}</td>
-                  <td>${p.kills || 0}</td>
-                  <td>${p.assists || 0}</td>
-                  <td>${p.deaths || 0}</td>
-                  <td class="match-player-rating">${(p.rating2 || 0).toFixed(2)}</td>
-                </tr>
-              `).join('') : '<tr><td colspan="5" class="text-center text-gray-500">Нет данных</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  `;
-
-  modal.classList.remove('hidden');
-}
-
-function closeMatchDetailsModal() {
-  const modal = document.getElementById('matchDetailsModal');
-  if (modal) modal.classList.add('hidden');
-}
-
-// Делаем функцию глобальной
-window.closeMatchDetailsModal = closeMatchDetailsModal;
-
-// Закрытие по клику на фон
-document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('matchDetailsModal');
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        closeMatchDetailsModal();
-      }
-    });
-  }
-});
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', async () => {

@@ -169,14 +169,6 @@
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching player stats:', error);
       }
-      // Если статус не указан в БД, устанавливаем 'active' по умолчанию
-      if (data && !data.status) {
-        data.status = 'active';
-      }
-      // Если награды не указаны в БД, устанавливаем пустой массив
-      if (data && !data.awards) {
-        data.awards = [];
-      }
       return data || null;
     } catch (e) {
       console.error('Error fetching player stats from Supabase:', e);
@@ -201,14 +193,11 @@
         total_deaths: stats.total_deaths || 0,
         kd_ratio: stats.kd_ratio || 0,
         avg_adr: stats.avg_adr || 0,
-        status: stats.status || 'active',
-        awards: Array.isArray(stats.awards) ? stats.awards : [],
         updated_at: new Date().toISOString()
       };
       const { data, error } = await client
         .from('player_stats')
-        .upsert(payload, { onConflict: 'player_name' })
-        .select();
+        .upsert(payload, { onConflict: 'player_name' });
       if (error) {
         console.error('Error updating player stats:', error);
       }

@@ -75,17 +75,6 @@
         <canvas id="rankingChart"></canvas>
       </div>
     </div>
-    <div class="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-xl p-6 mb-6 border border-gray-700/50 shadow-xl">
-      <!-- Карты -->
-      <div id="mapStatsSection" class="space-y-5 hidden">
-        <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-transparent">MAPS</h2>
-          <div id="mapTotalCount" class="text-sm text-gray-400"></div>
-        </div>
-        <div id="mapHighlights" class="space-y-2 mb-6"></div>
-        <div id="mapCards" class="space-y-0"></div>
-      </div>
-    </div>
     <div class="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-xl p-6 border border-gray-700/50 shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">История матчей</h2>
@@ -231,24 +220,9 @@
   </div>
 </div>
 
-<!-- МОДАЛЬНОЕ ОКНО ДЕТАЛЬНОЙ СТАТИСТИКИ МАТЧА -->
-<div id="matchDetailsModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-  <div class="bg-gradient-to-br from-gray-800/95 to-gray-900/95 rounded-xl max-w-6xl w-full max-h-[95vh] overflow-y-auto border border-gray-700/50 shadow-2xl my-8">
-    <div class="sticky top-0 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700/50 p-6 flex items-center justify-between backdrop-blur-sm z-10">
-      <h2 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Детальная статистика матча</h2>
-      <button onclick="closeMatchDetailsModal()" class="text-gray-400 hover:text-white text-3xl font-bold transition">✕</button>
-    </div>
-    <div id="matchDetailsContent" class="p-6">
-      <!-- Контент будет вставлен через JavaScript -->
-    </div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
-<script src="js/map-utils.js"></script>
-<script src="js/player-awards-store.js"></script>
 <script src="js/team-profile.js"></script>
 <script src="js/winrate-slider.js"></script>
 </body>

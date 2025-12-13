@@ -15,176 +15,7 @@ const hltvTeams = [
     }
 ];
 
-const maps = (window.mapUtils?.getPool?.() || ['Mirage', 'Dust2', 'Ancient', 'Overpass', 'Train', 'Nuke', 'Inferno']).filter(Boolean);
-
-function takeRandomMap(pool) {
-  if (!Array.isArray(pool) || pool.length === 0) return null;
-  const idx = Math.floor(Math.random() * pool.length);
-  return pool.splice(idx, 1)[0];
-}
-
-function simulateMapVeto(format, team1Name, team2Name) {
-  const pool = maps.length ? [...maps] : window.mapUtils.getPool();
-  const log = [];
-  const mapOrder = [];
-
-  const ban = (team) => {
-    const map = takeRandomMap(pool);
-    if (map) log.push({ type: 'ban', team, map });
-  };
-
-  const pick = (team) => {
-    const map = takeRandomMap(pool);
-    if (map) {
-      log.push({ type: 'pick', team, map });
-      mapOrder.push(map);
-    }
-  };
-
-  const decider = () => {
-    const map = takeRandomMap(pool);
-    if (map) {
-      log.push({ type: 'decider', map });
-      mapOrder.push(map);
-    }
-  };
-
-  switch (format) {
-    case 'BO1':
-      // Баним все карты до тех пор, пока не останется последняя
-      while (pool.length > 1) {
-        const currentTeam = (pool.length % 2 === 0) ? team2Name : team1Name;
-        ban(currentTeam);
-      }
-      // Последняя оставшаяся карта автоматически становится выбранной
-      if (pool.length === 1) {
-        decider();
-      }
-      break;
-    case 'BO3':
-      ban(team1Name);
-      ban(team2Name);
-      pick(team1Name);
-      pick(team2Name);
-      ban(team1Name);
-      ban(team2Name);
-      decider();
-      break;
-    case 'BO5':
-      ban(team1Name);
-      ban(team2Name);
-      while (mapOrder.length < 5 && pool.length > 0) {
-        pick(mapOrder.length % 2 === 0 ? team1Name : team2Name);
-      }
-      break;
-    default:
-      pick(team1Name);
-  }
-
-  if (mapOrder.length === 0) {
-    mapOrder.push(...pool.slice(0, 1));
-  }
-
-  return { mapOrder, log, remainingPool: pool };
-}
-
-async function renderVetoPanel(vetoData, team1Name, team2Name) {
-  const container = document.getElementById('vetoResults');
-  if (!container || !vetoData) return;
-
-  // Получаем логотипы команд
-  let team1Logo = getLogo('team1');
-  let team2Logo = getLogo('team2');
-  
-  // Пытаемся получить логотипы из сохраненных команд
-  if (!team1Logo || !team2Logo) {
-    try {
-      const allTeams = window.csApi ? await window.csApi.fetchTeams() : JSON.parse(localStorage.getItem('cs_teams') || '[]');
-      const team1 = allTeams.find(t => t.name === team1Name);
-      const team2 = allTeams.find(t => t.name === team2Name);
-      if (team1 && team1.logoUrl) team1Logo = team1.logoUrl;
-      if (team2 && team2.logoUrl) team2Logo = team2.logoUrl;
-    } catch (e) {
-      console.warn('Could not fetch team logos:', e);
-    }
-  }
-
-  const team1Color = 'rgba(59,130,246,0.9)';
-  const team2Color = 'rgba(249,115,22,0.9)';
-  const neutralColor = 'rgba(148,163,184,0.9)';
-
-  // Создаем карточки для всех шагов veto
-  const cardsHtml = vetoData.log
-    .map((step, index) => {
-      const theme = window.mapUtils?.getTheme?.(step.map) || {};
-      const mapImage = window.mapUtils?.getMapImage?.(step.map);
-      const isTeam1 = step.team === team1Name;
-      const isTeam2 = step.team === team2Name;
-      const isBan = step.type === 'ban';
-      const isPick = step.type === 'pick';
-      const isDecider = step.type === 'decider';
-      
-      const actionLabel = isDecider ? 'DECIDER' : (isBan ? 'BAN' : 'PICK');
-      const teamLogo = isDecider ? null : (isTeam1 ? team1Logo : team2Logo);
-      const teamColor = isDecider ? neutralColor : (isTeam1 ? team1Color : team2Color);
-      
-      return `
-        <div class="veto-map-card ${isBan ? 'veto-banned' : ''}">
-          <div class="veto-map-image-wrapper">
-            ${mapImage ? `<img src="${mapImage}" alt="${step.map}" class="veto-map-image" onerror="this.style.display='none';">` : ''}
-            <div class="veto-map-overlay" style="background: ${isBan ? 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.8) 100%)' : `linear-gradient(to bottom, ${theme.gradient || 'rgba(15,23,42,0.6)'} 0%, rgba(15,23,42,0.9) 100%)`};"></div>
-            <div class="veto-map-content">
-              <div class="veto-map-name">${step.map}</div>
-              ${teamLogo ? `<img src="${teamLogo}" alt="${step.team}" class="veto-team-logo" onerror="this.style.display='none';">` : ''}
-              <div class="veto-action-badge" style="background: ${teamColor};">
-                ${actionLabel}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  // Карточки для выбранных карт (map order)
-  const mapOrderHtml = vetoData.mapOrder
-    .map((map, idx) => {
-      const theme = window.mapUtils?.getTheme?.(map) || {};
-      const mapImage = window.mapUtils?.getMapImage?.(map);
-      return `
-        <div class="veto-map-card veto-picked">
-          <div class="veto-map-image-wrapper">
-            ${mapImage ? `<img src="${mapImage}" alt="${map}" class="veto-map-image" onerror="this.style.display='none';">` : ''}
-            <div class="veto-map-overlay" style="background: linear-gradient(to bottom, ${theme.gradient || 'rgba(15,23,42,0.6)'} 0%, rgba(15,23,42,0.9) 100%);"></div>
-            <div class="veto-map-content">
-              <div class="veto-map-name">${map}</div>
-              <div class="veto-map-number">Map ${idx + 1}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  container.innerHTML = `
-    <div class="veto-panel">
-      <div class="veto-header">
-        <h3 class="veto-title">${team1Name} VS ${team2Name}</h3>
-      </div>
-      <div class="veto-maps-grid">
-        ${cardsHtml}
-      </div>
-      ${vetoData.mapOrder.length > 0 ? `
-        <div class="veto-map-order">
-          <div class="veto-section-title">Map Order</div>
-          <div class="veto-maps-grid">
-            ${mapOrderHtml}
-          </div>
-        </div>
-      ` : ''}
-    </div>
-  `;
-}
+const maps = ['Mirage', 'Inferno', 'Dust2', 'Nuke', 'Vertigo', 'Ancient', 'Anubis'];
 
 // ---------- Utilities (Supabase-aware) ----------
 async function readSavedTeams() {
@@ -502,24 +333,12 @@ async function saveTeam(teamNum) {
     const logoUrl = document.getElementById(`team${teamNum}LogoUrl`).value.trim();
     // собираем игроков (включая фото)
     const players = [];
-    const savedTeams = await readSavedTeams();
-    const existingTeam = savedTeams.find(t => t.name === teamName);
-    
-    for (const div of document.querySelectorAll(`#team${teamNum}Players > div`)) {
+    document.querySelectorAll(`#team${teamNum}Players > div`).forEach(div => {
         const name = div.children[0].value.trim();
         const rating = parseFloat(div.children[1].value);
         const photoUrl = (div.children[2]?.value || '').trim();
-        if (name && !isNaN(rating)) {
-            // Сохраняем существующий статус игрока, если команда уже существует
-            const existingPlayer = existingTeam?.players?.find(p => p.name === name);
-            players.push({ 
-                name, 
-                rating, 
-                photoUrl,
-                status: existingPlayer?.status || 'active'
-            });
-        }
-    }
+        if (name && !isNaN(rating)) players.push({ name, rating, photoUrl });
+    });
 
     if (players.length !== 5) {
         alert('Each team must have exactly 5 players with valid names and ratings!');
@@ -632,41 +451,11 @@ function makePlayer(name, rating, photoUrl) {
   return { id: 'p' + Date.now() + Math.floor(Math.random()*1e6), name, rating, photoUrl };
 }
 
-function mergePlayersWithBench(existingPlayers = [], currentLineup = []) {
-  const result = [];
-  const existingMap = new Map();
-  existingPlayers.forEach(player => {
-    existingMap.set(normalizeName(player.name), { ...player });
-  });
-
-  currentLineup.forEach(player => {
-    const key = normalizeName(player.name);
-    const prev = existingMap.get(key);
-    const mergedPlayer = {
-      ...(prev || {}),
-      ...player,
-      status: 'active'
-    };
-    if (!mergedPlayer.id) {
-      const newId = makePlayer(player.name, player.rating, player.photoUrl).id;
-      mergedPlayer.id = newId;
-    }
-    result.push(mergedPlayer);
-    if (prev) {
-      existingMap.delete(key);
-    }
-  });
-
-  // Добавляем оставшихся (чаще всего BENCHED)
-  existingMap.forEach(player => result.push(player));
-  return result;
-}
-
 function normalizeName(name) {
   return (name||'').toLowerCase().trim();
 }
 
-async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, playerSeriesRatings, playerSeriesStats, mvpMatchParam, mapSeriesResults = []) {
+async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, playerSeriesRatings, playerSeriesStats, mvpMatchParam) {
     console.log('updateTeamRatings called with:', { team1Name, team2Name, winnerName, finalScore, mvpMatchParam });
     
     try {
@@ -740,62 +529,8 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
 
       // Сохраняем playerStats в запись истории с MVP матча
       const mvpData = mvpMatchParam ? { name: mvpMatchParam.name, photoUrl: mvpMatchParam.photoUrl, avgRating: mvpMatchParam.avgRating } : null;
-      const mapSeriesArray = Array.isArray(mapSeriesResults) ? mapSeriesResults : [];
-      const entry1MapDetails = mapSeriesArray.map((map, index) => ({
-          name: map.mapName,
-          order: index + 1,
-          teamScore: map.score1,
-          opponentScore: map.score2,
-          result: map.winner === team1Name ? 'Win' : 'Loss'
-      }));
-      const entry2MapDetails = mapSeriesArray.map((map, index) => ({
-          name: map.mapName,
-          order: index + 1,
-          teamScore: map.score2,
-          opponentScore: map.score1,
-          result: map.winner === team2Name ? 'Win' : 'Loss'
-      }));
-
-      const entry1 = {
-          date,
-          opponent: team2Name,
-          result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'),
-          score: scoreStr,
-          ratingChange: delta1,
-          rank: t1Rank,
-          mvp: mvpData,
-          mapDetails: entry1MapDetails,
-          playerStats: Array.isArray(playerSeriesStats?.team1)
-              ? playerSeriesStats.team1.map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  rating2: parseFloat(p.rating2),
-                  kills: p.kills || 0,
-                  deaths: p.deaths || 0,
-                  adr: parseFloat(p.adr) || 0
-                }))
-              : []
-      };
-      const entry2 = {
-          date,
-          opponent: team1Name,
-          result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'),
-          score: scoreStr.split('-').reverse().join('-'),
-          ratingChange: delta2,
-          rank: t2Rank,
-          mvp: mvpData,
-          mapDetails: entry2MapDetails,
-          playerStats: Array.isArray(playerSeriesStats?.team2)
-              ? playerSeriesStats.team2.map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  rating2: parseFloat(p.rating2),
-                  kills: p.kills || 0,
-                  deaths: p.deaths || 0,
-                  adr: parseFloat(p.adr) || 0
-                }))
-              : []
-      };
+      const entry1 = { date, opponent: team2Name, result: winnerName === team1Name ? 'Win' : (winnerName === team2Name ? 'Loss' : 'Draw'), score: scoreStr, ratingChange: delta1, rank: t1Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team1) ? playerSeriesStats.team1.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
+      const entry2 = { date, opponent: team1Name, result: winnerName === team2Name ? 'Win' : (winnerName === team1Name ? 'Loss' : 'Draw'), score: scoreStr.split('-').reverse().join('-'), ratingChange: delta2, rank: t2Rank, mvp: mvpData, playerStats: Array.isArray(playerSeriesStats?.team2) ? playerSeriesStats.team2.map(p=>({id:p.id,name:p.name,rating2:parseFloat(p.rating2)})) : [] };
 
       t1.history = [entry1, ...t1.history];
       t2.history = [entry2, ...t2.history];
@@ -881,8 +616,8 @@ function generatePlayerStats(players, isWinner, totalRounds) {
     });
 }
 
-function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2Players, team1Logo, team2Logo, mapNumber, mapName, simSpeed, callback) {
-    const selectedMap = mapName || maps[Math.floor(Math.random() * maps.length)] || 'Mirage';
+function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2Players, team1Logo, team2Logo, mapNumber, simSpeed, callback) {
+    const mapName = maps[Math.floor(Math.random() * maps.length)];
     let score1 = 0, score2 = 0;
     let isOvertime = false;
     let otNumber = 0;
@@ -897,7 +632,7 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
     if (liveScoreDiv) {
         liveScoreDiv.classList.remove('hidden');
         liveScoreDiv.innerHTML = `
-            <h3 class="text-lg font-semibold mb-2">Map ${mapNumber} (${selectedMap}) (Live)</h3>
+            <h3 class="text-lg font-semibold mb-2">Map ${mapNumber} (${mapName}) (Live)</h3>
             <div class="flex items-center justify-center space-x-4 mb-4">
                 <div class="flex items-center space-x-2">
                     ${team1Logo ? `<img src="${team1Logo}" alt="${team1Name} Logo" class="team-logo">` : ''}
@@ -967,7 +702,7 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
             
             statsDiv.innerHTML += `
                 <div class="map-result-header">
-                <div class="map-result-title">Map ${mapNumber}: ${selectedMap}${isOvertime ? ` <span class="overtime-badge">Overtime ${otNumber}</span>` : ''}</div>
+                    <div class="map-result-title">Map ${mapNumber}: ${mapName}${isOvertime ? ` <span class="overtime-badge">Overtime ${otNumber}</span>` : ''}</div>
                     <div class="map-score-display">
                         <div class="map-score-team ${winnerClass1}">
                             ${team1Logo ? `<img src="${team1Logo}" alt="${team1Name}" class="map-score-logo">` : ''}
@@ -1050,7 +785,7 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
             `;
         }
 
-        callback({ score1, score2, winner, isOvertime, team1Stats, team2Stats, mapName: selectedMap });
+        callback({ score1, score2, winner, isOvertime, team1Stats, team2Stats });
     }
 
     if (isInstant) {
@@ -1118,19 +853,6 @@ async function startLiveMatch() {
   if (liveScoreDiv) liveScoreDiv.classList.add('hidden');
 
   const maxMaps = matchFormat === 'BO1' ? 1 : matchFormat === 'BO3' ? 3 : 5;
-  const vetoData = simulateMapVeto(matchFormat, team1Name, team2Name);
-  await renderVetoPanel(vetoData, team1Name, team2Name);
-  let mapOrder = Array.isArray(vetoData.mapOrder) ? [...vetoData.mapOrder.slice(0, maxMaps)] : [];
-  const fallbackPool = window.mapUtils?.getPool?.() || maps;
-  let poolCursor = 0;
-  while (mapOrder.length < maxMaps) {
-    const candidate =
-      fallbackPool.find(m => !mapOrder.includes(m)) ||
-      maps[(poolCursor++) % maps.length] ||
-      'Mirage';
-    mapOrder.push(candidate);
-  }
-
   const winsNeeded = Math.ceil(maxMaps / 2);
   let team1Wins = 0, team2Wins = 0, map = 1;
   let mvpMatch = null; // Глобальная переменная для MVP матча
@@ -1157,22 +879,18 @@ async function startLiveMatch() {
     const savedTeams = await readSavedTeams();
     function upsertTeam(name, logoUrl, players) {
       const idx = savedTeams.findIndex(t => t.name === name);
-      const sanitizedPlayers = Array.isArray(players)
-        ? players.map(p => ({ ...p, status: p.status || 'active' }))
-        : [];
       if (idx !== -1) {
         const existing = savedTeams[idx];
-        const mergedPlayers = mergePlayersWithBench(existing.players || [], sanitizedPlayers);
         savedTeams[idx] = {
           ...existing,
           logoUrl: logoUrl || existing.logoUrl || '',
-          players: mergedPlayers
+          players: Array.isArray(players) && players.length === 5 ? players : existing.players
         };
       } else {
         savedTeams.push({
           name,
           logoUrl: logoUrl || '',
-          players: sanitizedPlayers,
+          players: Array.isArray(players) ? players : [],
           rating: 1500,
           history: []
         });
@@ -1185,8 +903,7 @@ async function startLiveMatch() {
 
   function playNextMap() {
     if (map <= maxMaps && team1Wins < winsNeeded && team2Wins < winsNeeded) {
-      const currentMap = mapOrder[map - 1] || maps[(map - 1) % maps.length];
-      simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2Players, team1Logo, team2Logo, map, currentMap, simSpeed, (result) => {
+      simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2Players, team1Logo, team2Logo, map, simSpeed, (result) => {
         // Результат одной карты
         mapResults.push(result);
         if (result.winner === team1Name) team1Wins++; else team2Wins++;
@@ -1411,7 +1128,7 @@ async function startLiveMatch() {
             if (isRated) {
               try {
                 console.log('Updating ratings with:', { team1Name, team2Name, finalWinner, playerSeriesRatings, team1Rows, team2Rows, mvpMatch });
-                await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore, playerSeriesRatings, { team1: team1Rows, team2: team2Rows }, mvpMatch, mapResults);
+                await updateTeamRatings(team1Name, team2Name, finalWinner, finalScore, playerSeriesRatings, { team1: team1Rows, team2: team2Rows }, mvpMatch);
                 console.log('Ratings updated successfully');
                 // Обновим таблицы/профили *после* гарантированного записи localStorage
                 if (typeof window.updateRatingsTable === 'function') {
