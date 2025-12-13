@@ -1,0 +1,22 @@
+# Node/npm artifacts
+node_modules/
+npm-debug.log*
+yarn.lock
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Local config (do NOT commit real keys)
+js/config.js
+
+# Python http.server cache (if any)
+__pycache__/
+
+
