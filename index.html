@@ -9,7 +9,21 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
     <div class="bg-gray-800 p-8 rounded-xl shadow-lg max-w-4xl mx-auto">
-        <h1 class="text-4xl font-bold text-center mb-8 tracking-tight">CS Match Simulator</h1>
+        <div class="flex items-center justify-between mb-8">
+            <h1 class="text-4xl font-bold tracking-tight">CS Match Simulator</h1>
+            <div class="flex gap-3">
+              
+                <a href="ratings.html" class="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-lg transform hover:scale-105">
+                    📊 Team Ratings
+                </a>
+                <a href="player-ratings.html" class="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-lg transform hover:scale-105">
+                    👤 Player Ratings
+                </a>
+                <a href="tournaments.html" class="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-lg transform hover:scale-105">
+                    🏆 Tournaments
+                </a>
+            </div>
+        </div>
 
         <!-- Match Format -->
         <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
@@ -47,6 +61,14 @@
                     <label for="team1Name" class="block text-sm font-medium">Team Name</label>
                     <input type="text" id="team1Name" placeholder="Team A" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
                 </div>
+                <div>
+                    <label for="team1Country" class="block text-sm font-medium">Country/Region</label>
+                    <select id="team1Country" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                        <option value="">Select country</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-4 mt-4">
                 <div>
                     <label for="team1Chance" class="block text-sm font-medium">Win Chance (%)</label>
                     <input type="number" id="team1Chance" placeholder="60" min="0" max="100" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
@@ -123,6 +145,14 @@
                     <input type="text" id="team2Name" placeholder="Team B" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
                 </div>
                 <div>
+                    <label for="team2Country" class="block text-sm font-medium">Country/Region</label>
+                    <select id="team2Country" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
+                        <option value="">Select country</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-4 mt-4">
+                <div>
                     <label for="team2Chance" class="block text-sm font-medium">Win Chance (%)</label>
                     <input type="number" id="team2Chance" placeholder="40" min="0" max="100" class="mt-1 p-2 w-full bg-gray-700 rounded-md text-white">
                 </div>
@@ -188,7 +218,6 @@
                 </div>
             </div>
         </div>
-
         <div class="space-y-3 mt-8">
             <button onclick="startLiveMatch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
                 🎮 Start Live Match
@@ -196,29 +225,37 @@
             <button onclick="resetForms()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
                 🔄 Reset
             </button>
-            <a href="ratings.html" class="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg">
-                📊 View Ratings Table
-            </a>
         </div>
 
         <div id="liveScore" class="mt-6 text-center text-lg font-semibold hidden"></div>
         <div id="vetoResults" class="mt-6"></div>
         <div id="matchScore" class="text-3xl font-bold text-center my-4 text-white">0 - 0</div>
-        <div id="result" class="mt-6 text-center text-lg font-semibold"></div>
-        <div id="stats" class="mt-6 overflow-x-auto"></div>
-    </div>
+            <div id="result" class="mt-6 text-center text-lg font-semibold"></div>
+            <div id="stats" class="mt-6 overflow-x-auto"></div>
+        </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/map-utils.js"></script>
-    <script src="js/script.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <!-- Загружаем локальный конфиг если существует (не коммитится в git) -->
+        <script src="js/config.local.js" onerror="console.log('Using default config.js')"></script>
+        <!-- Фоллбэк конфиг (дефолтные/пример значения) -->
+        <script src="js/config.js"></script>
+        <script src="js/api.js"></script>
+        <script src="js/map-utils.js"></script>
+        <script src="js/countries.js"></script>
+        <script src="js/script.js"></script>
+        <script>
+    // Глобальная функция для обновления
+    window.updateRatingsTable = function() {
+      // Будет переопределена в ratings.js
+    };
+    </script>
+    </body>
+    </html>
     <script>
 // Глобальная функция для обновления
 window.updateRatingsTable = function() {
   // Будет переопределена в ratings.js
 };
 </script>
-<script src="js/script.js"></script>
 </body>
 </html>

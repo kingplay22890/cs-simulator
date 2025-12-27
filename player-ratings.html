@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Рейтинг игроков</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-200">
+  <div class="container mx-auto p-6">
+    <!-- Шапка с навигацией -->
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="text-4xl font-bold">Рейтинг игроков</h1>
+      <div class="flex gap-3">
+        <a href="index.html" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition">← Назад</a>
+        <a href="ratings.html" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition">📊 Рейтинг команд</a>
+      </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700/50">
+      <div class="flex gap-4 items-center flex-wrap">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Поиск игрока:</label>
+          <input id="playerSearch" class="player-search-input" type="text" placeholder="Найти игрока (Enter — следующий)" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Период:</label>
+          <select id="periodFilter" class="bg-gray-700 text-white px-4 py-2 rounded-lg">
+            <option value="all">Все матчи</option>
+            <option value="last10">Последние 10 матчей</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Сортировка:</label>
+          <select id="sortFilter" class="bg-gray-700 text-white px-4 py-2 rounded-lg">
+            <option value="rating_desc">Рейтинг (выше)</option>
+            <option value="rating_asc">Рейтинг (ниже)</option>
+            <option value="matches">По матчам</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Минимум матчей:</label>
+          <select id="minMatchesFilter" class="bg-gray-700 text-white px-4 py-2 rounded-lg">
+            <option value="0">Все игроки</option>
+            <option value="5">5+ матчей</option>
+            <option value="10">10+ матчей</option>
+            <option value="15">15+ матчей</option>
+            <option value="20">20+ матчей</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Таблица рейтинга -->
+    <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700/50">
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-700/50 border-b border-gray-700">
+            <th class="px-6 py-4 text-left">#</th>
+            <th class="px-6 py-4 text-left">Игрок</th>
+            <th class="px-6 py-4 text-left">Команда</th>
+            <th class="px-6 py-4 text-center">Матчей</th>
+            <th class="px-6 py-4 text-center">Рейтинг</th>
+            <th class="px-6 py-4 text-center">Побед</th>
+            <th class="px-6 py-4 text-center">Win Rate</th>
+            <th class="px-6 py-4 text-center">Подробнее</th>
+          </tr>
+        </thead>
+        <tbody id="playersTableBody">
+          <tr>
+            <td colspan="8" class="px-6 py-8 text-center text-gray-400">Загружаю данные...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    let allTeams = [];
+    let currentPeriod = 'all';
+    let currentSort = 'rating_desc';
+
+    async function loadTeamsData() {
+      try {
+        // Используем API если доступен, иначе падаем на localStorage
+        let teams = [];
+        if (window.csApi) {
+          teams = await window.csApi.fetchTeams();
+        } else {
+          const raw = localStorage.getItem('cs_teams');
+          teams = JSON.parse(raw || '[]');
+        }
+        allTeams = teams;
+        console.log('Teams loaded:', allTeams);
+        console.log('Total teams:', allTeams.length);
+        allTeams.forEach(team => {
+          console.log(`Team: ${team.name}, History length: ${team.history ? team.history.length : 0}`);
+          if (team.history && team.history[0]) {
+            console.log('First match:', team.history[0]);
+          }
+        });
+        renderPlayersTable();
+      } catch (e) {
+        console.error('Error loading teams:', e);
+        allTeams = [];
+      }
+    }
+
+    function getPlayerStats(playerName, team, period) {
+      let matchCount = 0;
+      let wins = 0;
+      let ratingSum = 0;
+      let photoUrl = '';
+
+      if (Array.isArray(team.history)) {
+        const historyToUse = period === 'last10' ? team.history.slice(0, 10) : team.history;
+        
+        historyToUse.forEach(match => {
+          let playersList = null;
+          if (Array.isArray(match.playerStats)) {
+            playersList = match.playerStats;
+          } else if (Array.isArray(match.players)) {
+            playersList = match.players;
+          }
+          
+          if (playersList) {
+            const foundPlayer = playersList.find(p => p.name === playerName);
+            if (foundPlayer) {
+              matchCount++;
+              ratingSum += foundPlayer.rating2 || foundPlayer.rating || 0;
+              if (!photoUrl && foundPlayer.photoUrl) {
+                photoUrl = foundPlayer.photoUrl;
+              }
+              if (match.result === 'Win') {
+                wins++;
+              }
+            }
+          }
+        });
+      }
+
+      return {
+        matches: matchCount,
+        wins: wins,
+        avgRating: matchCount > 0 ? (ratingSum / matchCount).toFixed(2) : 0,
+        winRate: matchCount > 0 ? Math.round((wins / matchCount) * 100) : 0,
+        photoUrl: photoUrl
+      };
+    }
+
+    function renderPlayersTable() {
+      const tbody = document.getElementById('playersTableBody');
+      const period = document.getElementById('periodFilter').value;
+      const sort = document.getElementById('sortFilter').value;
+      const minMatches = parseInt(document.getElementById('minMatchesFilter').value) || 0;
+
+      // Сначала создаём map игроков с их текущими данными из team.players
+      const playerProfileMap = new Map(); // name -> {team, photoUrl, teamLogoUrl}
+      allTeams.forEach(team => {
+        if (Array.isArray(team.players)) {
+          team.players.forEach(player => {
+            if (player.name) {
+              playerProfileMap.set(player.name.toLowerCase().trim(), {
+                team: team.name,
+                photoUrl: player.photoUrl || '',
+                teamLogoUrl: team.logoUrl || ''
+              });
+            }
+          });
+        }
+      });
+
+      // Собираем всех игроков с их статистикой из истории матчей
+      const playersMap = new Map(); // name -> {team, matches, wins, ratingSum, photoUrl, teamLogoUrl}
+
+      allTeams.forEach(team => {
+        const historyToUse = period === 'last10' ? team.history.slice(0, 10) : team.history;
+        if (Array.isArray(historyToUse)) {
+          historyToUse.forEach((match, matchIdx) => {
+            // Ищем playerStats или players или playerSeriesStats
+            let playersList = null;
+            if (Array.isArray(match.playerStats)) {
+              playersList = match.playerStats;
+            } else if (Array.isArray(match.players)) {
+              playersList = match.players;
+            } else if (match.playerSeriesStats && Array.isArray(match.playerSeriesStats.team1)) {
+              // Объединяем обе команды если это формат с playerSeriesStats
+              playersList = [...match.playerSeriesStats.team1, ...match.playerSeriesStats.team2];
+            }
+
+            if (playersList) {
+              playersList.forEach(player => {
+                const playerName = player.name;
+                if (!playerName) return;
+                
+                const playerKey = playerName.toLowerCase().trim();
+                const profileData = playerProfileMap.get(playerKey) || {};
+
+                // Если игрок уже есть в map, обновляем его данные
+                if (playersMap.has(playerKey)) {
+                  const playerData = playersMap.get(playerKey);
+                  playerData.matches++;
+                  const rating = player.rating2 || player.rating || 0;
+                  playerData.ratingSum += rating;
+                  if (match.result === 'Win') {
+                    playerData.wins++;
+                  }
+                } else {
+                  // Добавляем нового игрока с данными из профиля
+                  playersMap.set(playerKey, {
+                    name: playerName,
+                    team: profileData.team || team.name,
+                    teamLogoUrl: profileData.teamLogoUrl || team.logoUrl || '',
+                    photoUrl: profileData.photoUrl || player.photoUrl || '',
+                    matches: 1,
+                    wins: match.result === 'Win' ? 1 : 0,
+                    ratingSum: player.rating2 || player.rating || 0
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+
+      console.log('Total unique players found:', playersMap.size);
+      console.log('Players map:', Array.from(playersMap.values()).slice(0, 5));
+
+      // Преобразуем в массив и добавляем вычисленные поля
+      let playersData = Array.from(playersMap.values()).map(p => ({
+        ...p,
+        avgRating: p.matches > 0 ? (p.ratingSum / p.matches).toFixed(2) : 0,
+        winRate: p.matches > 0 ? Math.round((p.wins / p.matches) * 100) : 0
+      }));
+
+      // Фильтруем по минимальному количеству матчей
+      playersData = playersData.filter(p => p.matches >= minMatches);
+
+      // Применяем поиск по имени (если задан)
+      const searchInput = document.getElementById('playerSearch');
+      const searchTerm = searchInput && searchInput.value ? searchInput.value.trim().toLowerCase() : '';
+      if (searchTerm) {
+        playersData = playersData.filter(p => p.name.toLowerCase().includes(searchTerm));
+      }
+
+      // Сортируем
+      switch (sort) {
+        case 'rating_desc':
+          playersData.sort((a, b) => b.avgRating - a.avgRating);
+          break;
+        case 'rating_asc':
+          playersData.sort((a, b) => a.avgRating - b.avgRating);
+          break;
+        case 'matches':
+          playersData.sort((a, b) => b.matches - a.matches);
+          break;
+      }
+
+      if (playersData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-400">Нет данных об игроках</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = playersData.map((player, idx) => `
+        <tr data-name="${player.name.toLowerCase()}" class="border-b border-gray-700 hover:bg-gray-700/30 transition">
+          <td class="px-6 py-4 font-bold text-gray-300">${idx + 1}</td>
+          <td class="px-6 py-4">
+            <a href="player-profile.html?player=${encodeURIComponent(player.name)}&team=${encodeURIComponent(player.team)}" class="flex items-center gap-3 hover:text-blue-400 transition cursor-pointer">
+              ${player.photoUrl ? `<img src="${player.photoUrl}" alt="${player.name}" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white" style="${player.photoUrl ? 'display:none;' : ''}">
+                ${player.name.charAt(0).toUpperCase()}
+              </div>
+              <span class="font-semibold hover:underline">${player.name}</span>
+            </a>
+          </td>
+          <td class="px-6 py-4 text-gray-400">
+            <div class="flex items-center gap-2">
+              ${player.teamLogoUrl ? `<img src="${player.teamLogoUrl}" alt="${player.team}" class="w-6 h-6 rounded object-cover" onerror="this.style.display='none';">` : ''}
+              <span>${player.team}</span>
+            </div>
+          </td>
+          <td class="px-6 py-4 text-center">${player.matches}</td>
+          <td class="px-6 py-4 text-center">
+            <span class="text-lg font-bold ${parseFloat(player.avgRating) >= 1.2 ? 'text-green-400' : parseFloat(player.avgRating) >= 1.0 ? 'text-yellow-400' : 'text-red-400'}">
+              ${player.avgRating}
+            </span>
+          </td>
+          <td class="px-6 py-4 text-center text-green-400 font-semibold">${player.wins}</td>
+          <td class="px-6 py-4 text-center">
+            <span class="px-3 py-1 rounded-full font-semibold ${player.winRate >= 60 ? 'bg-green-500/20 text-green-400' : player.winRate >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}">
+              ${player.winRate}%
+            </span>
+          </td>
+          <td class="px-6 py-4 text-center">
+            <a href="player-profile.html?player=${encodeURIComponent(player.name)}&team=${encodeURIComponent(player.team)}" class="text-blue-400 hover:text-blue-300 hover:underline">
+              Подробнее
+            </a>
+          </td>
+        </tr>
+      `).join('');
+
+      // Highlight search results and manage focus index
+      const allRows = Array.from(tbody.querySelectorAll('tr[data-name]'));
+      allRows.forEach(r => r.classList.remove('player-highlight'));
+      if (searchTerm && allRows.length > 0) {
+        // highlight all matches
+        allRows.forEach(r => {
+          if (r.getAttribute('data-name').includes(searchTerm)) r.classList.add('player-highlight');
+        });
+        // scroll first into view
+        const first = allRows.find(r => r.classList.contains('player-highlight'));
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    document.getElementById('periodFilter').addEventListener('change', (e) => {
+      console.log('Period changed to:', e.target.value);
+      currentPeriod = e.target.value;
+      renderPlayersTable();
+    });
+
+    document.getElementById('sortFilter').addEventListener('change', (e) => {
+      console.log('Sort changed to:', e.target.value);
+      currentSort = e.target.value;
+      renderPlayersTable();
+    });
+
+    document.getElementById('minMatchesFilter').addEventListener('change', (e) => {
+      console.log('Min matches filter changed to:', e.target.value);
+      renderPlayersTable();
+    });
+
+    // Search input behavior: re-render on input; Enter navigates to next match
+    (function() {
+      const searchEl = document.getElementById('playerSearch');
+      if (!searchEl) return;
+      let lastIndex = -1;
+      searchEl.addEventListener('input', () => {
+        lastIndex = -1;
+        renderPlayersTable();
+      });
+      searchEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const tbody = document.getElementById('playersTableBody');
+          const rows = Array.from(tbody.querySelectorAll('tr.player-highlight'));
+          if (rows.length === 0) return;
+          lastIndex = (lastIndex + 1) % rows.length;
+          const target = rows[lastIndex];
+          target.classList.add('player-highlight');
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    })();
+
+    // Загружаем данные при загрузке страницы
+    document.addEventListener('DOMContentLoaded', loadTeamsData);
+  </script>
+</body>
+</html>

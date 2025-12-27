@@ -13,6 +13,15 @@
         <a href="index.html" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg mb-6">
             ← Back to Simulator
         </a>
+        
+        <!-- Region Filter -->
+        <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            <label for="regionFilter" class="block text-sm font-medium mb-2">Filter by Region</label>
+            <select id="regionFilter" class="p-2 w-full bg-gray-700 rounded-md text-white">
+                <option value="">All Regions</option>
+            </select>
+        </div>
+        
         <div class="flex justify-end mb-4">
             <div class="view-toggle">
                 <button id="viewCardsBtn" class="view-toggle-btn active" title="Card View">
@@ -21,6 +30,7 @@
                 <button id="viewTableBtn" class="view-toggle-btn" title="Table View">
                     <span>📊</span> Table
                 </button>
+                <button id="openArchiveBtn" class="view-toggle-btn ml-3" title="Open Ratings Archive">Archive</button>
             </div>
         </div>
         <div id="ratingsContainer">
@@ -30,6 +40,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/countries.js"></script>
     <script src="js/ratings.js"></script>
+    <script src="js/rating-archive.js"></script>
 </body>
 </html>

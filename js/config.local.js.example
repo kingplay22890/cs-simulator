@@ -1,0 +1,7 @@
+// config.local.js — ЛОКАЛЬНЫЙ КОНФИГ (НЕ КОММИТИТСЯ В GIT)
+// Скопируйте этот файл в js/config.local.js и вставьте свои реальные ключи
+// Этот файл переопределяет значения из js/config.js
+
+// Получайте значения из: https://supabase.com/dashboard → Settings → API
+window.SUPABASE_URL = 'https://pwjshenmyzmmyevecpcc.supabase.co';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3anNoZW5teXptbXlldmVjcGNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4MTIzMzksImV4cCI6MjA4MjM4ODMzOX0.EGvwp5mE3fGMb4GCaPkqnjDLQbVxoo9mKFzMA192dRw';

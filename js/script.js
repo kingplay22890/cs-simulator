@@ -1,5 +1,17 @@
 // script.js - исправленная версия
 
+// Функции для работы с командами (совместимость)
+async function writeSavedTeams(teams) {
+  if (window.csApi) {
+    await window.csApi.writeSavedTeams(teams);
+  } else {
+    localStorage.setItem('cs_teams', JSON.stringify(teams));
+  }
+}
+
+// Глобальный кэш команд для поиска
+let allTeamsCache = [];
+
 // Мок-данные HLTV
 const hltvTeams = [
     {
@@ -16,6 +28,10 @@ const hltvTeams = [
 ];
 
 const maps = (window.mapUtils?.getPool?.() || ['Mirage', 'Dust2', 'Ancient', 'Overpass', 'Train', 'Nuke', 'Inferno']).filter(Boolean);
+
+// Глобальные настройки вероятностей для игроков
+const PLAYER_HOT_PROB_GLOBAL = 0.005; // 0.5% шанс на "матч жизни" (уменьшено)
+const PLAYER_COLD_PROB_GLOBAL = 0.002; // 0.2% шанс на провал у игрока (уменьшено)
 
 function takeRandomMap(pool) {
   if (!Array.isArray(pool) || pool.length === 0) return null;
@@ -92,281 +108,265 @@ async function renderVetoPanel(vetoData, team1Name, team2Name) {
   const container = document.getElementById('vetoResults');
   if (!container || !vetoData) return;
 
-  // Получаем логотипы команд
-  let team1Logo = getLogo('team1');
-  let team2Logo = getLogo('team2');
-  
-  // Пытаемся получить логотипы из сохраненных команд
-  if (!team1Logo || !team2Logo) {
-    try {
-      const allTeams = window.csApi ? await window.csApi.fetchTeams() : JSON.parse(localStorage.getItem('cs_teams') || '[]');
-      const team1 = allTeams.find(t => t.name === team1Name);
-      const team2 = allTeams.find(t => t.name === team2Name);
-      if (team1 && team1.logoUrl) team1Logo = team1.logoUrl;
-      if (team2 && team2.logoUrl) team2Logo = team2.logoUrl;
-    } catch (e) {
-      console.warn('Could not fetch team logos:', e);
-    }
+  // Добавляем стили для hover эффекта если их нет
+  if (!document.getElementById('vetoHoverStyles')) {
+    const style = document.createElement('style');
+    style.id = 'vetoHoverStyles';
+    style.textContent = `
+      .veto-card {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 2rem;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      .veto-card:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 32px rgba(0, 200, 255, 0.3);
+      }
+      .veto-card-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: filter 0.3s ease;
+      }
+      .veto-card.ban .veto-card-image {
+        filter: grayscale(1) opacity(0.7);
+      }
+      .veto-card-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 1.5rem;
+        z-index: 10;
+      }
+      .veto-card-title {
+        color: white;
+        font-weight: 800;
+        font-size: 2rem;
+        text-align: center;
+        text-shadow: 0 3px 10px rgba(0,0,0,0.9);
+        letter-spacing: 0.05em;
+      }
+      .veto-card-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+      .veto-card-logo {
+        width: 3.5rem;
+        height: 3.5rem;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        transition: all 0.3s ease;
+      }
+      .veto-card.ban .veto-card-logo {
+        filter: grayscale(1) opacity(0.8);
+      }
+      .veto-card:hover .veto-card-logo {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 6px 20px rgba(0, 200, 255, 0.5);
+      }
+      .veto-card.ban:hover .veto-card-logo {
+        filter: grayscale(0.3) opacity(1);
+      }
+      .veto-card-button {
+        padding: 0.5rem 1.5rem;
+        color: black;
+        font-weight: 700;
+        font-size: 0.875rem;
+        border-radius: 0.5rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      .veto-card-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+      }
+      .veto-card-button.ban {
+        background: #9CA3AF;
+      }
+      .veto-card-button.pick-team1 {
+        background: #3B82F6;
+      }
+      .veto-card-button.pick-team2 {
+        background: #FBBF24;
+      }
+      .veto-card-button.decider {
+        background: #9CA3AF;
+      }
+      .map-order-card {
+        position: relative;
+        border-radius: 2rem;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        height: 280px;
+      }
+      .map-order-card:hover {
+        transform: translateY(-12px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      }
+      .map-order-image-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 2rem;
+      }
+      .map-order-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.4s ease;
+      }
+      .map-order-card:hover .map-order-image {
+        transform: scale(1.1);
+      }
+      .map-order-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 1.5rem;
+        z-index: 10;
+      }
+      .map-order-title {
+        color: white;
+        font-weight: 800;
+        font-size: 2.5rem;
+        text-align: center;
+        text-shadow: 0 3px 10px rgba(0,0,0,0.9);
+        letter-spacing: 0.05em;
+      }
+      .map-order-label {
+        color: white;
+        font-weight: 600;
+        font-size: 1rem;
+        text-align: center;
+        text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+      }
+    `;
+    document.head.appendChild(style);
   }
 
-  const team1Color = 'rgba(59,130,246,0.9)';
-  const team2Color = 'rgba(249,115,22,0.9)';
-  const neutralColor = 'rgba(148,163,184,0.9)';
+  // Map images
+  const mapImages = {
+    'Ancient': 'https://liquipedia.net/commons/images/thumb/f/fc/CS2_de_ancient.png/800px-CS2_de_ancient.png',
+    'Dust2': 'https://liquipedia.net/commons/images/thumb/d/d7/CS2_Dust_2_A_Site.jpg/800px-CS2_Dust_2_A_Site.jpg',
+    'Inferno': 'https://liquipedia.net/commons/images/thumb/0/08/CS2_de_inferno.png/800px-CS2_de_inferno.png',
+    'Mirage': 'https://liquipedia.net/commons/images/thumb/f/f1/CS2_de_mirage.png/800px-CS2_de_mirage.png',
+    'Nuke': 'https://liquipedia.net/commons/images/thumb/a/ad/CS2_de_nuke.png/800px-CS2_de_nuke.png',
+    'Overpass': 'https://liquipedia.net/commons/images/thumb/3/3c/CS2_de_overpass.png/800px-CS2_de_overpass.png',
+    'Train': 'https://liquipedia.net/commons/images/thumb/4/44/CS2_de_train.png/800px-CS2_de_train.png'
+  };
 
-  // Создаем карточки для всех шагов veto
-  const cardsHtml = vetoData.log
-    .map((step, index) => {
-      const theme = window.mapUtils?.getTheme?.(step.map) || {};
-      const mapImage = window.mapUtils?.getMapImage?.(step.map);
-      const isTeam1 = step.team === team1Name;
-      const isTeam2 = step.team === team2Name;
-      const isBan = step.type === 'ban';
-      const isPick = step.type === 'pick';
-      const isDecider = step.type === 'decider';
-      
-      const actionLabel = isDecider ? 'DECIDER' : (isBan ? 'BAN' : 'PICK');
-      const teamLogo = isDecider ? null : (isTeam1 ? team1Logo : team2Logo);
-      const teamColor = isDecider ? neutralColor : (isTeam1 ? team1Color : team2Color);
-      
-      return `
-        <div class="veto-map-card ${isBan ? 'veto-banned' : ''}">
-          <div class="veto-map-image-wrapper">
-            ${mapImage ? `<img src="${mapImage}" alt="${step.map}" class="veto-map-image" onerror="this.style.display='none';">` : ''}
-            <div class="veto-map-overlay" style="background: ${isBan ? 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.8) 100%)' : `linear-gradient(to bottom, ${theme.gradient || 'rgba(15,23,42,0.6)'} 0%, rgba(15,23,42,0.9) 100%)`};"></div>
-            <div class="veto-map-content">
-              <div class="veto-map-name">${step.map}</div>
-              ${teamLogo ? `<img src="${teamLogo}" alt="${step.team}" class="veto-team-logo" onerror="this.style.display='none';">` : ''}
-              <div class="veto-action-badge" style="background: ${teamColor};">
-                ${actionLabel}
-              </div>
+  // Get team logos
+  const team1Logo = getLogo('team1') || '';
+  const team2Logo = getLogo('team2') || '';
+  const teamLogos = {
+    [team1Name]: team1Logo,
+    [team2Name]: team2Logo
+  };
+
+  // Build veto grid
+  const vetoGridHtml = (vetoData.log || []).map((entry) => {
+    const mapImage = mapImages[entry.map] || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23222' width='300' height='200'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='32' fill='%23999'%3E${entry.map}%3C/text%3E%3C/svg%3E`;
+    
+    let actionType = '';
+    if (entry.type === 'ban') {
+      actionType = 'ban';
+    } else if (entry.type === 'pick') {
+      actionType = entry.team === team1Name ? 'pick-team1' : 'pick-team2';
+    } else {
+      actionType = 'decider';
+    }
+    
+    const actionBadge = entry.type === 'ban' 
+      ? 'BAN'
+      : entry.type === 'pick'
+      ? 'PICK'
+      : 'DECIDER';
+    
+    const teamLogo = actionType !== 'decider' ? (teamLogos[entry.team] || '') : '';
+    const logoHtml = teamLogo ? `<img src="${teamLogo}" alt="${entry.team}" class="veto-card-logo" onerror="this.style.display='none'">` : (actionType !== 'decider' ? '<div class="veto-card-logo" style="background: #374151;"></div>' : '');
+    
+    return `
+      <div class="veto-card ${entry.type === 'ban' ? 'ban' : ''}">
+        <img src="${mapImage}" alt="${entry.map}" class="veto-card-image" onerror="this.style.backgroundColor='#1a1a1a'">
+        <div class="veto-card-overlay">
+          <div class="veto-card-title">${entry.map}</div>
+          <div class="veto-card-center">
+            ${logoHtml}
+            <button class="veto-card-button ${actionType}">
+              ${actionBadge}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Build map order section
+  const mapOrderHtml = (vetoData.mapOrder || []).map((map, idx) => {
+    const mapImage = mapImages[map] || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23222' width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='24' fill='%23999'%3E${map}%3C/text%3E%3C/svg%3E`;
+    return `
+      <div class="map-order-card">
+        <div class="map-order-image-container">
+          <img src="${mapImage}" alt="${map}" class="map-order-image" onerror="this.style.backgroundColor='#1a1a1a'">
+          <div class="map-order-overlay">
+            <div></div>
+            <div class="text-center">
+              <div class="map-order-title">${map}</div>
+              <div class="map-order-label">Map ${idx + 1}</div>
             </div>
           </div>
         </div>
-      `;
-    })
-    .join('');
-
-  // Карточки для выбранных карт (map order)
-  const mapOrderHtml = vetoData.mapOrder
-    .map((map, idx) => {
-      const theme = window.mapUtils?.getTheme?.(map) || {};
-      const mapImage = window.mapUtils?.getMapImage?.(map);
-      return `
-        <div class="veto-map-card veto-picked">
-          <div class="veto-map-image-wrapper">
-            ${mapImage ? `<img src="${mapImage}" alt="${map}" class="veto-map-image" onerror="this.style.display='none';">` : ''}
-            <div class="veto-map-overlay" style="background: linear-gradient(to bottom, ${theme.gradient || 'rgba(15,23,42,0.6)'} 0%, rgba(15,23,42,0.9) 100%);"></div>
-            <div class="veto-map-content">
-              <div class="veto-map-name">${map}</div>
-              <div class="veto-map-number">Map ${idx + 1}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
+      </div>
+    `;
+  }).join('');
 
   container.innerHTML = `
-    <div class="veto-panel">
-      <div class="veto-header">
-        <h3 class="veto-title">${team1Name} VS ${team2Name}</h3>
-      </div>
-      <div class="veto-maps-grid">
-        ${cardsHtml}
-      </div>
-      ${vetoData.mapOrder.length > 0 ? `
-        <div class="veto-map-order">
-          <div class="veto-section-title">Map Order</div>
-          <div class="veto-maps-grid">
+    <div class="mt-8">
+      <div class="bg-gray-800/30 border border-gray-700 rounded-lg p-6">
+        <!-- Team Header -->
+        <div class="text-center mb-6">
+          <h2 class="text-white text-2xl font-bold tracking-wider">${team1Name} VS ${team2Name}</h2>
+        </div>
+
+        <!-- Veto Grid -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          ${vetoGridHtml}
+        </div>
+
+        <!-- Divider -->
+        <div class="border-t border-gray-700 my-6"></div>
+
+        <!-- Map Order Section -->
+        <div class="mb-4">
+          <h3 class="text-center text-white text-xl font-bold tracking-widest mb-6">MAP ORDER</h3>
+          <div class="grid grid-cols-3 gap-6">
             ${mapOrderHtml}
           </div>
         </div>
-      ` : ''}
+      </div>
     </div>
   `;
 }
 
-// ---------- Utilities (Supabase-aware) ----------
-async function readSavedTeams() {
-    try {
-        if (window.csApi) {
-            return await window.csApi.fetchTeams();
-        }
-        const raw = localStorage.getItem('cs_teams');
-        const parsed = JSON.parse(raw || '[]');
-        return parsed.map(t => ({
-            name: t.name,
-            logoUrl: t.logoUrl || '',
-            players: Array.isArray(t.players) ? t.players : [],
-            rating: typeof t.rating === 'number' ? t.rating : 1500,
-            history: Array.isArray(t.history) ? t.history : []
-        }));
-    } catch (e) {
-        console.error('Error reading teams:', e);
-        return [];
-    }
-}
-async function writeSavedTeams(arr) {
-    if (window.csApi) {
-        await window.csApi.upsertTeamsBulk(arr || []);
-    } else {
-        localStorage.setItem('cs_teams', JSON.stringify(arr));
-    }
-}
-
-// ---------- Load/Save Teams ----------
-async function loadSavedTeams() {
-    let savedTeams = await readSavedTeams();
-
-    const team1Select = document.getElementById('team1Load');
-    const team2Select = document.getElementById('team2Load');
-    if (team1Select) {
-        team1Select.innerHTML = '<option value="">Select a saved team</option>';
-    }
-    if (team2Select) {
-        team2Select.innerHTML = '<option value="">Select a saved team</option>';
-    }
-
-    savedTeams.forEach(team => {
-        const optionHtml = `<option value="${team.name}">${team.name}</option>`;
-        if (team1Select) team1Select.insertAdjacentHTML('beforeend', optionHtml);
-        if (team2Select) team2Select.insertAdjacentHTML('beforeend', optionHtml);
-    });
-
-    // Для локального режима синхронизируем структуру
-    if (!window.csApi) await writeSavedTeams(savedTeams);
-    
-    // Инициализируем поиск команд
-    initTeamSearch();
-}
-
-// ---------- Team Search Functionality ----------
-let allTeamsCache = [];
-let selectedTeamIndex = { team1: -1, team2: -1 };
-
-async function initTeamSearch() {
-    // Загружаем все команды (включая HLTV) в кэш
-    const savedTeams = await readSavedTeams();
-    allTeamsCache = [...savedTeams];
-    
-    // Добавляем HLTV команды
-    hltvTeams.forEach(hltvTeam => {
-        if (!allTeamsCache.find(t => t.name === hltvTeam.name)) {
-            allTeamsCache.push({
-                name: hltvTeam.name,
-                logoUrl: hltvTeam.logoUrl || '',
-                players: hltvTeam.players || [],
-                rating: 1500,
-                history: [],
-                isHltv: true
-            });
-        }
-    });
-    
-    // Инициализируем поиск для обеих команд
-    setupTeamSearch(1);
-    setupTeamSearch(2);
-}
-
-function setupTeamSearch(teamNum) {
-    const searchInput = document.getElementById(`team${teamNum}Search`);
-    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
-    
-    if (!searchInput || !dropdown) return;
-    
-    // Проверяем, были ли уже добавлены обработчики
-    if (searchInput.dataset.searchInitialized === 'true') return;
-    searchInput.dataset.searchInitialized = 'true';
-    
-    // Обработчик ввода
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase().trim();
-        if (query.length === 0) {
-            dropdown.classList.add('hidden');
-            return;
-        }
-        
-        filterAndShowTeams(teamNum, query);
-    });
-    
-    // Обработчик фокуса
-    searchInput.addEventListener('focus', () => {
-        const query = searchInput.value.toLowerCase().trim();
-        if (query.length > 0) {
-            filterAndShowTeams(teamNum, query);
-        } else {
-            // Показываем все команды при фокусе на пустом поле
-            showAllTeams(teamNum);
-        }
-    });
-    
-    // Закрытие при клике вне (один глобальный обработчик для всех поисков)
-    if (!window.teamSearchClickHandler) {
-        window.teamSearchClickHandler = (e) => {
-            const allSearchInputs = document.querySelectorAll('[id$="Search"]');
-            const allDropdowns = document.querySelectorAll('[id$="Dropdown"]');
-            
-            let clickedInside = false;
-            allSearchInputs.forEach(input => {
-                if (input.contains(e.target)) clickedInside = true;
-            });
-            allDropdowns.forEach(drop => {
-                if (drop.contains(e.target)) clickedInside = true;
-            });
-            
-            if (!clickedInside) {
-                allDropdowns.forEach(drop => drop.classList.add('hidden'));
-            }
-        };
-        document.addEventListener('click', window.teamSearchClickHandler);
-    }
-    
-    // Навигация клавиатурой
-    searchInput.addEventListener('keydown', (e) => {
-        const items = dropdown.querySelectorAll('.team-search-item:not(.team-search-item-empty)');
-        
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            selectedTeamIndex[`team${teamNum}`] = Math.min(
-                selectedTeamIndex[`team${teamNum}`] + 1,
-                items.length - 1
-            );
-            updateSelectedItem(teamNum, items);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            selectedTeamIndex[`team${teamNum}`] = Math.max(
-                selectedTeamIndex[`team${teamNum}`] - 1,
-                -1
-            );
-            updateSelectedItem(teamNum, items);
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (selectedTeamIndex[`team${teamNum}`] >= 0 && items[selectedTeamIndex[`team${teamNum}`]]) {
-                items[selectedTeamIndex[`team${teamNum}`]].click();
-            }
-        } else if (e.key === 'Escape') {
-            dropdown.classList.add('hidden');
-        }
-    });
-}
-
-function filterAndShowTeams(teamNum, query) {
-    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
-    const filtered = allTeamsCache.filter(team => 
-        team.name.toLowerCase().includes(query)
-    );
-    
-    renderTeamDropdown(teamNum, filtered);
-    selectedTeamIndex[`team${teamNum}`] = -1;
-}
-
-function showAllTeams(teamNum) {
-    renderTeamDropdown(teamNum, allTeamsCache);
-    selectedTeamIndex[`team${teamNum}`] = -1;
-}
-
 function renderTeamDropdown(teamNum, teams) {
-    const dropdown = document.getElementById(`team${teamNum}Dropdown`);
+  const dropdown = document.getElementById(`team${teamNum}Dropdown`);
     if (!dropdown) return;
     
     if (teams.length === 0) {
@@ -441,6 +441,138 @@ async function selectTeam(teamNum, teamName) {
     }
 }
 
+// On main page load: check if there is a pending match request from tournaments UI
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const raw = localStorage.getItem('pending_match');
+    if (!raw) return;
+    const payload = JSON.parse(raw);
+    if (!payload) return;
+    console.log('📨 Pending match payload on main:', payload);
+    
+    // Load teams directly from localStorage instead of waiting for cache
+    const raw_teams = localStorage.getItem('cs_teams');
+    const teams = raw_teams ? JSON.parse(raw_teams) : [];
+    console.log('📂 Loaded teams from localStorage:', teams.length, 'teams');
+
+    // Team 1
+    if (payload.team1Id) {
+      let team = teams.find(t => t.id === payload.team1Id);
+      if (!team) {
+        console.warn('❌ Team1 by id not found, trying by name:', payload.team1Name);
+        team = teams.find(t => t.name === payload.team1Name);
+      }
+      if (team) {
+        console.log('✅ Team1 found:', team.name);
+        populateTeamDirectly(1, team);
+      } else {
+        console.error('❌❌ Team1 not found at all! Searched for id:', payload.team1Id, 'and name:', payload.team1Name);
+      }
+    }
+
+    // Team 2
+    if (payload.team2Id) {
+      let team = teams.find(t => t.id === payload.team2Id);
+      if (!team) {
+        console.warn('❌ Team2 by id not found, trying by name:', payload.team2Name);
+        team = teams.find(t => t.name === payload.team2Name);
+      }
+      if (team) {
+        console.log('✅ Team2 found:', team.name);
+        populateTeamDirectly(2, team);
+      } else {
+        console.error('❌❌ Team2 not found at all! Searched for id:', payload.team2Id, 'and name:', payload.team2Name);
+      }
+    }
+
+    console.log('✅ Pending match loaded');
+  } catch (e) {
+    console.error('❌ Error processing pending_match:', e);
+  }
+  await loadSavedTeams();
+});
+
+// Direct team population - load from localStorage if needed
+function populateTeamDirectly(teamNum, team) {
+  try {
+    console.log(`🔧 Populating team${teamNum}:`, team.name);
+    document.getElementById(`team${teamNum}Name`).value = team.name;
+    document.getElementById(`team${teamNum}LogoUrl`).value = team.logoUrl || '';
+    const preview = document.getElementById(`team${teamNum}LogoPreview`);
+    if (preview) preview.src = team.logoUrl || '';
+    
+    const activePlayers = team.players && Array.isArray(team.players)
+      ? team.players.filter(p => p.status !== 'benched')
+      : [];
+    
+    const playerContainer = document.getElementById(`team${teamNum}Players`);
+    if (!playerContainer) {
+      console.warn(`Player container not found for team${teamNum}`);
+      return;
+    }
+    const divs = playerContainer.querySelectorAll('div');
+    divs.forEach((div, index) => {
+      if (activePlayers[index]) {
+        div.children[0].value = activePlayers[index].name || '';
+        div.children[1].value = activePlayers[index].rating ?? '';
+        if (div.children[2]) div.children[2].value = activePlayers[index].photoUrl || '';
+      } else {
+        div.children[0].value = '';
+        div.children[1].value = '';
+        if (div.children[2]) div.children[2].value = '';
+      }
+    });
+    console.log(`✅ Team${teamNum} populated:`, team.name);
+  } catch (e) {
+    console.error(`Error populating team${teamNum}:`, e);
+  }
+}
+
+// Load team by id and populate form (used when selectTeam by name fails)
+async function loadTeamById(teamNum, teamId) {
+  try {
+    const savedTeams = await readSavedTeams();
+    const team = savedTeams.find(t => t.id === teamId);
+    if (!team) {
+      console.warn('loadTeamById: team not found', teamId);
+      return;
+    }
+    document.getElementById(`team${teamNum}Name`).value = team.name;
+    document.getElementById(`team${teamNum}LogoUrl`).value = team.logoUrl || '';
+    const preview = document.getElementById(`team${teamNum}LogoPreview`);
+    if (preview) preview.src = team.logoUrl || '';
+
+    const activePlayers = team.players && Array.isArray(team.players)
+      ? team.players.filter(p => p.status !== 'benched')
+      : [];
+    const playerContainer = document.getElementById(`team${teamNum}Players`);
+    playerContainer.querySelectorAll('div').forEach((div, index) => {
+      if (activePlayers[index]) {
+        div.children[0].value = activePlayers[index].name || '';
+        div.children[1].value = activePlayers[index].rating ?? '';
+        if (div.children[2]) div.children[2].value = activePlayers[index].photoUrl || '';
+      } else {
+        div.children[0].value = '';
+        div.children[1].value = '';
+        if (div.children[2]) div.children[2].value = '';
+      }
+    });
+    console.log('loadTeamById: populated team slot', teamNum, team.name);
+  } catch (e) {
+    console.error('Error in loadTeamById', e);
+  }
+}
+
+// Helper: report match result to tournaments UI via localStorage
+// result: { tournamentId, matchId, team1Score, team2Score, winnerId }
+window.reportMatchResult = function(result) {
+  if (!result || !result.tournamentId || !result.matchId) throw new Error('Invalid result');
+  localStorage.setItem('last_played_match_result', JSON.stringify(result));
+  // Optionally remove pending_match
+  localStorage.removeItem('pending_match');
+  alert('Результат матча отправлен в турнирную систему. Вернитесь в Турниры.');
+};
+
 async function loadTeamByName(teamNum, teamName) {
     const savedTeams = await readSavedTeams();
     const team = savedTeams.find(t => t.name === teamName);
@@ -448,6 +580,12 @@ async function loadTeamByName(teamNum, teamName) {
     
     document.getElementById(`team${teamNum}Name`).value = team.name;
     document.getElementById(`team${teamNum}LogoUrl`).value = team.logoUrl || '';
+    
+    const countrySelect = document.getElementById(`team${teamNum}Country`);
+    if (countrySelect && team.country) {
+        countrySelect.value = team.country;
+    }
+    
     const preview = document.getElementById(`team${teamNum}LogoPreview`);
     if (preview) preview.src = team.logoUrl || '';
     
@@ -500,6 +638,9 @@ async function loadHltvTeamByName(teamNum, teamName) {
 async function saveTeam(teamNum) {
     const teamName = document.getElementById(`team${teamNum}Name`).value.trim() || `Team ${teamNum === 1 ? 'A' : 'B'}`;
     const logoUrl = document.getElementById(`team${teamNum}LogoUrl`).value.trim();
+    const country = document.getElementById(`team${teamNum}Country`).value.trim();
+    const region = country ? getRegionByCountry(country) : '';
+    
     // собираем игроков (включая фото)
     const players = [];
     const savedTeams = await readSavedTeams();
@@ -529,7 +670,9 @@ async function saveTeam(teamNum) {
     if (window.csApi) {
         const currentTeams = await readSavedTeams();
         const existing = currentTeams.find(t => t.name === teamName);
-        const teamData = existing ? { ...existing, logoUrl: logoUrl || existing.logoUrl || '', players } : { name: teamName, logoUrl: logoUrl || '', players, rating: 1500, history: [] };
+        const teamData = existing 
+            ? { ...existing, logoUrl: logoUrl || existing.logoUrl || '', players, country, region } 
+            : { name: teamName, logoUrl: logoUrl || '', players, country, region, rating: 1500, history: [] };
         console.log('Saving team to Supabase:', teamData);
         await window.csApi.upsertTeam(teamData);
         const saved = await window.csApi.getTeamByName(teamName);
@@ -540,17 +683,33 @@ async function saveTeam(teamNum) {
         let teamData;
         if (existingIndex !== -1) {
             const existing = savedTeams[existingIndex];
-            teamData = { ...existing, name: teamName, logoUrl: logoUrl || existing.logoUrl || '', players };
+            teamData = { 
+              ...existing, 
+              id: existing.id || 'team_' + teamName.replace(/\s+/g, '_').toLowerCase(),
+              name: teamName, 
+              logoUrl: logoUrl || existing.logoUrl || '', 
+              players,
+              country,
+              region
+            };
             savedTeams[existingIndex] = teamData;
         } else {
-            teamData = { name: teamName, logoUrl: logoUrl || '', players, rating: 1500, history: [] };
+            teamData = { 
+              id: 'team_' + teamName.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now(),
+              name: teamName, 
+              logoUrl: logoUrl || '', 
+              players, 
+              country,
+              region,
+              rating: 1500, 
+              history: [] 
+            };
             savedTeams.push(teamData);
         }
         await writeSavedTeams(savedTeams);
     }
     await loadSavedTeams();
-    // Обновляем кэш команд для поиска
-    await initTeamSearch();
+        
     alert(`Team ${teamName} saved!`);
 }
 
@@ -746,14 +905,36 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
           order: index + 1,
           teamScore: map.score1,
           opponentScore: map.score2,
-          result: map.winner === team1Name ? 'Win' : 'Loss'
+          result: map.winner === team1Name ? 'Win' : 'Loss',
+          playerStats: Array.isArray(map.team1Stats) 
+              ? map.team1Stats.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  rating2: parseFloat(p.rating2) || 0,
+                  kills: p.kills || 0,
+                  deaths: p.deaths || 0,
+                  assists: p.assists || 0,
+                  adr: parseFloat(p.adr) || 0
+                }))
+              : []
       }));
       const entry2MapDetails = mapSeriesArray.map((map, index) => ({
           name: map.mapName,
           order: index + 1,
           teamScore: map.score2,
           opponentScore: map.score1,
-          result: map.winner === team2Name ? 'Win' : 'Loss'
+          result: map.winner === team2Name ? 'Win' : 'Loss',
+          playerStats: Array.isArray(map.team2Stats) 
+              ? map.team2Stats.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  rating2: parseFloat(p.rating2) || 0,
+                  kills: p.kills || 0,
+                  deaths: p.deaths || 0,
+                  assists: p.assists || 0,
+                  adr: parseFloat(p.adr) || 0
+                }))
+              : []
       }));
 
       const entry1 = {
@@ -769,6 +950,7 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
               ? playerSeriesStats.team1.map(p => ({
                   id: p.id,
                   name: p.name,
+                  photoUrl: p.photoUrl || '',
                   rating2: parseFloat(p.rating2),
                   kills: p.kills || 0,
                   deaths: p.deaths || 0,
@@ -789,6 +971,7 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
               ? playerSeriesStats.team2.map(p => ({
                   id: p.id,
                   name: p.name,
+                  photoUrl: p.photoUrl || '',
                   rating2: parseFloat(p.rating2),
                   kills: p.kills || 0,
                   deaths: p.deaths || 0,
@@ -800,45 +983,100 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
       t1.history = [entry1, ...t1.history];
       t2.history = [entry2, ...t2.history];
 
+      console.log('DEBUG: entry1 mapDetails:', JSON.stringify(entry1.mapDetails));
+      console.log('DEBUG: entry1 score:', entry1.score);
+      console.log('DEBUG: entry2 mapDetails:', JSON.stringify(entry2.mapDetails));
+      console.log('DEBUG: entry2 score:', entry2.score);
       console.log('Updated teams before saving:', { t1, t2 });
 
       if (window.csApi) {
           console.log('Saving via Supabase API...');
           await window.csApi.upsertTeamsBulk([t1, t2]);
           
-          // Сохраняем статистику игроков в Supabase
-          if (playerSeriesStats?.team1 && Array.isArray(playerSeriesStats.team1)) {
-              for (const player of playerSeriesStats.team1) {
-                  console.log('Saving team1 player:', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
-                  await window.csApi.savePlayerMatch({
-                      player_name: player.name,
-                      team_name: t1.name,
-                      opponent: t2.name,
-                      match_date: date,
-                      result: entry1.result,
-                      score: scoreStr,
-                      rating: parseFloat(player.rating2),
-                      kills: player.kills || 0,
-                      deaths: player.deaths || 0,
-                      adr: parseFloat(player.adr) || 0
-                  });
+          // Сохраняем статистику игроков по каждой карте отдельно
+          if (mapSeriesResults && Array.isArray(mapSeriesResults) && mapSeriesResults.length > 0) {
+              // Сохраняем статистику для каждой карты
+              for (const mapResult of mapSeriesResults) {
+                  const mapName = mapResult.mapName || 'Unknown';
+                  const mapScore1 = mapResult.score1 || 0;
+                  const mapScore2 = mapResult.score2 || 0;
+                  const mapScoreStr = `${mapScore1}-${mapScore2}`;
+                  const mapWinner = mapResult.winner;
+                  const isTeam1Winner = mapWinner === team1Name;
+                  
+                  // Сохраняем статистику команды 1 для этой карты
+                  if (mapResult.team1Stats && Array.isArray(mapResult.team1Stats)) {
+                      for (const player of mapResult.team1Stats) {
+                          console.log('Saving team1 player for map:', { player_name: player.name, map: mapName, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                          await window.csApi.savePlayerMatch({
+                              player_name: player.name,
+                              team_name: t1.name,
+                              opponent: t2.name,
+                              match_date: date,
+                              result: isTeam1Winner ? 'Win' : 'Loss',
+                              score: `${mapName}: ${mapScoreStr}`,
+                              rating: parseFloat(player.rating2) || 0,
+                              kills: player.kills || 0,
+                              deaths: player.deaths || 0,
+                              adr: parseFloat(player.adr) || 0
+                          });
+                      }
+                  }
+                  
+                  // Сохраняем статистику команды 2 для этой карты
+                  if (mapResult.team2Stats && Array.isArray(mapResult.team2Stats)) {
+                      for (const player of mapResult.team2Stats) {
+                          console.log('Saving team2 player for map:', { player_name: player.name, map: mapName, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                          await window.csApi.savePlayerMatch({
+                              player_name: player.name,
+                              team_name: t2.name,
+                              opponent: t1.name,
+                              match_date: date,
+                              result: !isTeam1Winner ? 'Win' : 'Loss',
+                              score: `${mapName}: ${mapScore2}-${mapScore1}`,
+                              rating: parseFloat(player.rating2) || 0,
+                              kills: player.kills || 0,
+                              deaths: player.deaths || 0,
+                              adr: parseFloat(player.adr) || 0
+                          });
+                      }
+                  }
               }
-          }
-          if (playerSeriesStats?.team2 && Array.isArray(playerSeriesStats.team2)) {
-              for (const player of playerSeriesStats.team2) {
-                  console.log('Saving team2 player:', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
-                  await window.csApi.savePlayerMatch({
-                      player_name: player.name,
-                      team_name: t2.name,
-                      opponent: t1.name,
-                      match_date: date,
-                      result: entry2.result,
-                      score: entry2.score,
-                      rating: parseFloat(player.rating2),
-                      kills: player.kills || 0,
-                      deaths: player.deaths || 0,
-                      adr: parseFloat(player.adr) || 0
-                  });
+          } else {
+              // Fallback: сохраняем общую статистику, если нет данных по картам
+              if (playerSeriesStats?.team1 && Array.isArray(playerSeriesStats.team1)) {
+                  for (const player of playerSeriesStats.team1) {
+                      console.log('Saving team1 player (fallback):', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                      await window.csApi.savePlayerMatch({
+                          player_name: player.name,
+                          team_name: t1.name,
+                          opponent: t2.name,
+                          match_date: date,
+                          result: entry1.result,
+                          score: scoreStr,
+                          rating: parseFloat(player.rating2),
+                          kills: player.kills || 0,
+                          deaths: player.deaths || 0,
+                          adr: parseFloat(player.adr) || 0
+                      });
+                  }
+              }
+              if (playerSeriesStats?.team2 && Array.isArray(playerSeriesStats.team2)) {
+                  for (const player of playerSeriesStats.team2) {
+                      console.log('Saving team2 player (fallback):', { player_name: player.name, kills: player.kills, deaths: player.deaths, adr: player.adr });
+                      await window.csApi.savePlayerMatch({
+                          player_name: player.name,
+                          team_name: t2.name,
+                          opponent: t1.name,
+                          match_date: date,
+                          result: entry2.result,
+                          score: entry2.score,
+                          rating: parseFloat(player.rating2),
+                          kills: player.kills || 0,
+                          deaths: player.deaths || 0,
+                          adr: parseFloat(player.adr) || 0
+                      });
+                  }
               }
           }
       } else {
@@ -850,6 +1088,32 @@ async function updateTeamRatings(team1Name, team2Name, winnerName, finalScore, p
       }
       
       console.log('updateTeamRatings completed successfully');
+
+      // Report tournament match result if tournament is active
+      const pendingStr = localStorage.getItem('pending_match');
+      if (pendingStr) {
+        try {
+          const pending = JSON.parse(pendingStr);
+          if (pending.tournamentId && pending.matchId && pending.team1Id && pending.team2Id) {
+            const team1IsWinner = winnerName === team1Name;
+            const result = {
+              tournamentId: pending.tournamentId,
+              matchId: pending.matchId,
+              team1Id: pending.team1Id,
+              team2Id: pending.team2Id,
+              team1Score: parseInt(finalScore.split('-')[0]) || 0,
+              team2Score: parseInt(finalScore.split('-')[1]) || 0,
+              winner: team1IsWinner ? 'team1' : 'team2',
+              team1Name: team1Name,
+              team2Name: team2Name
+            };
+            console.log('🏆 Reporting tournament match result:', result);
+            window.reportMatchResult(result);
+          }
+        } catch (e) {
+          console.error('Error reporting tournament result:', e);
+        }
+      }
     } catch (e) {
       console.error('Fatal error in updateTeamRatings:', e);
     }
@@ -872,12 +1136,31 @@ function generatePlayerStats(players, isWinner, totalRounds) {
     const baseKills = Math.floor(totalRounds * 0.8);
     return players.map(player => {
         const ratingFactor = player.rating || 1.0;
-        const kills = Math.floor((Math.random() * 5 + baseKills + (isWinner ? 3 : -3)) * ratingFactor);
-        const deaths = Math.floor((Math.random() * 5 + baseKills - (isWinner ? 3 : -3)) / Math.max(0.5, ratingFactor));
+        let kills = Math.floor((Math.random() * 5 + baseKills + (isWinner ? 3 : -3)) * ratingFactor);
+        let deaths = Math.floor((Math.random() * 5 + baseKills - (isWinner ? 3 : -3)) / Math.max(0.5, ratingFactor));
         const assists = Math.floor(Math.random() * Math.max(0, kills) * 0.4);
-        const adr = (Math.random() * 30 + 60 * (player.rating || 1)).toFixed(0);
-        const rating2 = (player.rating + (isWinner ? Math.random() * 0.4 : -Math.random() * 0.3)).toFixed(2);
-        return { ...player, kills: Math.max(0, kills), deaths: Math.max(0, deaths), assists, adr, rating2 };
+        let adr = (Math.random() * 30 + 60 * (player.rating || 1)).toFixed(0);
+        let rating2 = parseFloat((player.rating + (isWinner ? Math.random() * 0.4 : -Math.random() * 0.3)).toFixed(2));
+
+        // Маленький шанс на «матч жизни» для отдельного игрока
+        if (Math.random() < (typeof PLAYER_HOT_PROB_GLOBAL !== 'undefined' ? PLAYER_HOT_PROB_GLOBAL : 0.02)) {
+            const extraKills = Math.floor(8 + Math.random() * 10);
+            kills += extraKills;
+            rating2 = parseFloat((rating2 + 0.5 + Math.random() * 1.0).toFixed(2));
+            adr = Math.max(adr, Math.floor(adr * (1 + 0.2 + Math.random() * 0.5)));
+            // пометка в имени (необязательно)
+            player._hotMatch = true;
+        }
+
+        // Очень маленький шанс на провал у игрока
+        if (Math.random() < (typeof PLAYER_COLD_PROB_GLOBAL !== 'undefined' ? PLAYER_COLD_PROB_GLOBAL : 0.005)) {
+            const lostKills = Math.floor(3 + Math.random() * 5);
+            kills = Math.max(0, kills - lostKills);
+            rating2 = parseFloat((rating2 - (0.4 + Math.random() * 0.8)).toFixed(2));
+            player._coldMatch = true;
+        }
+
+        return { ...player, kills: Math.max(0, kills), deaths: Math.max(0, deaths), assists, adr, rating2: rating2.toFixed ? rating2.toFixed(2) : rating2 };
     });
 }
 
@@ -912,12 +1195,37 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
         `;
     }
 
+    // Настройки случайности
+    const UPSET_PROB = 0.03; // 3% шанс апсета на карту
+    const PLAYER_HOT_PROB = (typeof PLAYER_HOT_PROB_GLOBAL !== 'undefined' ? PLAYER_HOT_PROB_GLOBAL : 0.02); // configurable via global
+
+    let effectiveTeam1Chance = Number(team1Chance);
+    // Редкий апсет: даём существенный бонус аутсайдеру
+    if (Math.random() < UPSET_PROB) {
+        const underdogIsTeam1 = effectiveTeam1Chance < 50;
+        const bonus = 30 + Math.random() * 25; // 30..55
+        if (underdogIsTeam1) {
+            effectiveTeam1Chance = Math.min(95, effectiveTeam1Chance + bonus);
+            console.log('🎲 Upset event: boosting underdog Team1 by', bonus.toFixed(1));
+        } else {
+            effectiveTeam1Chance = Math.max(5, effectiveTeam1Chance - bonus);
+            console.log('🎲 Upset event: cutting favorite Team1 by', bonus.toFixed(1));
+        }
+        // пометка в UI (необязательная)
+        if (liveScoreDiv) {
+            const note = document.createElement('div');
+            note.className = 'text-xs text-yellow-500';
+            note.textContent = 'Rare upset event occured on this map!';
+            liveScoreDiv.appendChild(note);
+        }
+    }
+
     let timeout = simSpeed === 'fast' ? 500 : 1800;
     const isInstant = simSpeed === 'instant';
 
     function simulateRound() {
         const random = Math.random() * 100;
-        if (random < team1Chance) score1++; else score2++;
+        if (random < effectiveTeam1Chance) score1++; else score2++;
         const el = document.getElementById('liveScoreText');
         if (el) el.textContent = `${score1} - ${score2}`;
     }
@@ -945,6 +1253,7 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
         const totalRounds = score1 + score2;
         const winner = score1 > score2 ? team1Name : team2Name;
         const isWinnerTeam1 = score1 > score2;
+        // Передаём флаг вероятности горячих матчей через глобальную переменную конфигурации — generatePlayerStats читает Math.random()
         const team1Stats = generatePlayerStats(team1Players, isWinnerTeam1, totalRounds);
         const team2Stats = generatePlayerStats(team2Players, !isWinnerTeam1, totalRounds);
         const allStats = [...team1Stats, ...team2Stats];
@@ -1068,58 +1377,69 @@ function simulateLiveMap(team1Name, team2Name, team1Chance, team1Players, team2P
 }
 
 async function startLiveMatch() {
-  const team1Name = document.getElementById('team1Name').value.trim() || 'Team A';
-  const team2Name = document.getElementById('team2Name').value.trim() || 'Team B';
-  let team1Chance = parseInt(document.getElementById('team1Chance').value);
-  if (isNaN(team1Chance)) team1Chance = 50;
-  const matchFormat = document.getElementById('matchFormat').value;
-  const simSpeed = document.getElementById('simSpeed').value;
-  const isRated = document.getElementById('ratedMatch').checked;
-  const team1Logo = getLogo('team1');
-  const team2Logo = getLogo('team2');
-  const resultDiv = document.getElementById('result');
-  const statsDiv = document.getElementById('stats');
-  const liveScoreDiv = document.getElementById('liveScore');
+  console.log('🎮 startLiveMatch called');
+  try {
+    const team1Name = document.getElementById('team1Name').value.trim() || 'Team A';
+    const team2Name = document.getElementById('team2Name').value.trim() || 'Team B';
+    let team1Chance = parseInt(document.getElementById('team1Chance').value);
+    if (isNaN(team1Chance)) team1Chance = 50;
+    const matchFormat = document.getElementById('matchFormat').value;
+    const simSpeed = document.getElementById('simSpeed').value;
+    const isInstant = simSpeed === 'instant';
+    const isRated = document.getElementById('ratedMatch').checked;
+    const team1Logo = getLogo('team1');
+    const team2Logo = getLogo('team2');
+    const resultDiv = document.getElementById('result');
+    const statsDiv = document.getElementById('stats');
+    const liveScoreDiv = document.getElementById('liveScore');
 
-  if (team1Chance < 0 || team1Chance > 100) {
-    if (resultDiv) resultDiv.innerHTML = '<span class="text-red-500">Шанс 0-100!</span>';
-    return;
-  }
+    console.log('📋 Match config:', { team1Name, team2Name, matchFormat, simSpeed, team1Chance });
 
-  const team1Players = [], team2Players = [];
-  document.querySelectorAll('#team1Players > div').forEach(div => {
-    const name = div.children[0].value.trim();
-    const rating = parseFloat(div.children[1].value);
-    const photoUrl = (div.children[2]?.value || '').trim();
-    if (name && !isNaN(rating)) {
-      let pl = { name, rating, photoUrl };
-      if (!pl.id) pl = makePlayer(name, rating, photoUrl); // всегда присваиваем id если нет
-      team1Players.push(pl);
+    if (team1Chance < 0 || team1Chance > 100) {
+      if (resultDiv) resultDiv.innerHTML = '<span class="text-red-500">Шанс 0-100!</span>';
+      return;
     }
-  });
-  document.querySelectorAll('#team2Players > div').forEach(div => {
-    const name = div.children[0].value.trim();
-    const rating = parseFloat(div.children[1].value);
-    const photoUrl = (div.children[2]?.value || '').trim();
-    if (name && !isNaN(rating)) {
-      let pl = { name, rating, photoUrl };
-      if (!pl.id) pl = makePlayer(name, rating, photoUrl); // всегда присваиваем id если нет
-      team2Players.push(pl);
+
+    const team1Players = [], team2Players = [];
+    document.querySelectorAll('#team1Players > div').forEach(div => {
+      const name = div.children[0].value.trim();
+      const rating = parseFloat(div.children[1].value);
+      const photoUrl = (div.children[2]?.value || '').trim();
+      if (name && !isNaN(rating)) {
+        let pl = { name, rating, photoUrl };
+        if (!pl.id) pl = makePlayer(name, rating, photoUrl);
+        team1Players.push(pl);
+      }
+    });
+    document.querySelectorAll('#team2Players > div').forEach(div => {
+      const name = div.children[0].value.trim();
+      const rating = parseFloat(div.children[1].value);
+      const photoUrl = (div.children[2]?.value || '').trim();
+      if (name && !isNaN(rating)) {
+        let pl = { name, rating, photoUrl };
+        if (!pl.id) pl = makePlayer(name, rating, photoUrl);
+        team2Players.push(pl);
+      }
+    });
+
+    console.log(`👥 Players: Team1: ${team1Players.length}, Team2: ${team2Players.length}`);
+
+    if (team1Players.length !== 5 || team2Players.length !== 5) {
+      if (resultDiv) resultDiv.innerHTML = '<span class="text-red-500">Нужно 5 игроков! Team1: ' + team1Players.length + ', Team2: ' + team2Players.length + '</span>';
+      console.warn('❌ Not enough players');
+      return;
     }
-  });
 
-  if (team1Players.length !== 5 || team2Players.length !== 5) {
-    if (resultDiv) resultDiv.innerHTML = '<span class="text-red-500">5 игроков!</span>';
-    return;
-  }
+    if (resultDiv) resultDiv.innerHTML = ''; 
+    if (statsDiv) statsDiv.innerHTML = ''; 
+    if (liveScoreDiv) liveScoreDiv.classList.add('hidden');
 
-  if (resultDiv) resultDiv.innerHTML = ''; 
-  if (statsDiv) statsDiv.innerHTML = ''; 
-  if (liveScoreDiv) liveScoreDiv.classList.add('hidden');
+    console.log('✅ Validation passed, starting match...');
 
-  const maxMaps = matchFormat === 'BO1' ? 1 : matchFormat === 'BO3' ? 3 : 5;
-  const vetoData = simulateMapVeto(matchFormat, team1Name, team2Name);
-  await renderVetoPanel(vetoData, team1Name, team2Name);
+    const maxMaps = matchFormat === 'BO1' ? 1 : matchFormat === 'BO3' ? 3 : 5;
+    const vetoData = simulateMapVeto(matchFormat, team1Name, team2Name);
+    console.log('🗺️ Veto data:', vetoData);
+    await renderVetoPanel(vetoData, team1Name, team2Name);
   let mapOrder = Array.isArray(vetoData.mapOrder) ? [...vetoData.mapOrder.slice(0, maxMaps)] : [];
   const fallbackPool = window.mapUtils?.getPool?.() || maps;
   let poolCursor = 0;
@@ -1195,7 +1515,7 @@ async function startLiveMatch() {
         // Если матч не закончен — следующая карта
         if (team1Wins < winsNeeded && team2Wins < winsNeeded) {
           map++;
-          setTimeout(playNextMap, 800); // небольшая пауза между картами
+          setTimeout(playNextMap, 1500); // пауза между картами для чтения счета
         } else {
           // Финализируем матч — итоговый победитель и счёт по картам
           const finalWinner = team1Wins > team2Wins ? team1Name : team2Name;
@@ -1433,6 +1753,13 @@ async function startLiveMatch() {
   }
 
   playNextMap();
+  } catch (error) {
+    console.error('❌ Error in startLiveMatch:', error);
+    const resultDiv = document.getElementById('result');
+    if (resultDiv) {
+      resultDiv.innerHTML = '<span class="text-red-500">❌ Ошибка: ' + error.message + '</span>';
+    }
+  }
 }
 
 // ---------- Misc ----------
@@ -1469,6 +1796,9 @@ window.onload = async () => {
     if (savedSpeed) {
         const el = document.getElementById('simSpeed');
         if (el) el.value = savedSpeed;
+    } else {
+      const el = document.getElementById('simSpeed');
+      if (el) el.value = 'instant';
     }
 };
 
@@ -1513,3 +1843,113 @@ document.getElementById('matchFormat')?.addEventListener('change', function() {
 document.getElementById('simSpeed')?.addEventListener('change', function() {
     localStorage.setItem('cs_sim_speed', this.value);
 });
+// === Initialize Country Selects ===
+function initCountrySelects() {
+    const team1Select = document.getElementById('team1Country');
+    const team2Select = document.getElementById('team2Country');
+    
+    if (!team1Select || !team2Select) return;
+    
+    // Group countries by region
+    const regions = Object.values(COUNTRIES_AND_REGIONS);
+    
+    regions.forEach(region => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `${region.flag} ${region.region}`;
+        
+        region.countries.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country.name;
+            option.textContent = `${country.flag} ${country.name}`;
+            optgroup.appendChild(option);
+        });
+        
+        team1Select.appendChild(optgroup.cloneNode(true));
+        team2Select.appendChild(optgroup.cloneNode(true));
+    });
+    
+    // Load saved values from localStorage
+    const team1Country = localStorage.getItem('team1Country') || '';
+    const team2Country = localStorage.getItem('team2Country') || '';
+    
+    if (team1Country) team1Select.value = team1Country;
+    if (team2Country) team2Select.value = team2Country;
+    
+    // Save on change
+    team1Select.addEventListener('change', function() {
+        localStorage.setItem('team1Country', this.value);
+    });
+    
+    team2Select.addEventListener('change', function() {
+        localStorage.setItem('team2Country', this.value);
+    });
+}
+
+// Load saved teams into search dropdowns and hidden selects
+async function loadSavedTeams() {
+  try {
+    const teams = window.readSavedTeams ? await window.readSavedTeams() : JSON.parse(localStorage.getItem('cs_teams') || '[]');
+    allTeamsCache = teams || [];
+    console.log('✅ Teams loaded into cache:', allTeamsCache.length, 'teams', allTeamsCache);
+
+    // Populate selects used across the UI
+    ['quickTeam1','quickTeam2','team1Load','team2Load'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Select Team</option>' + (allTeamsCache || []).map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+    });
+
+    // Initialize search inputs/dropdowns for team1 and team2
+    ['team1','team2'].forEach(teamPrefix => {
+      const input = document.getElementById(teamPrefix + 'Search');
+      const dropdown = document.getElementById(teamPrefix + 'Dropdown');
+      console.log(`🔧 Initializing ${teamPrefix}: input=${!!input}, dropdown=${!!dropdown}`);
+      if (!input || !dropdown) {
+        console.error(`❌ Missing ${teamPrefix}: input=${teamPrefix + 'Search'}, dropdown=${teamPrefix + 'Dropdown'}`);
+        return;
+      }
+      
+      input.addEventListener('input', function(){
+        const q = this.value.trim().toLowerCase();
+        console.log(`🔍 Search "${q}" in ${allTeamsCache.length} teams`);
+        const matches = (allTeamsCache || []).filter(t => t.name.toLowerCase().includes(q)).slice(0,50);
+        console.log(`📊 Found ${matches.length} matches`);  
+        if (matches.length === 0) {
+          dropdown.innerHTML = '<div class="team-search-item-empty">No teams found</div>';
+          dropdown.classList.remove('hidden');
+          return;
+        }
+        dropdown.innerHTML = matches.map(team => `
+              <div class="team-search-item" data-team-name="${team.name}">
+                <img src="${team.logoUrl||'https://via.placeholder.com/32?text=🏆'}" class="team-search-item-logo" onerror="this.src='https://via.placeholder.com/32?text=🏆'">
+                <div class="team-search-item-info">
+                  <div class="team-search-item-name">${team.name}</div>
+                  <div class="team-search-item-rating">Rating: ${typeof team.rating==='number'?team.rating:1500}</div>
+                </div>
+              </div>`).join('');
+        dropdown.querySelectorAll('.team-search-item').forEach(item => {
+          item.addEventListener('click', ()=>{ 
+            selectTeam(teamPrefix==='team1'?1:2, item.getAttribute('data-team-name')); 
+          });
+        });
+        dropdown.classList.remove('hidden');
+      });
+      
+      input.addEventListener('focus', function(){ 
+        console.log(`👁️ Focus on ${teamPrefix}Search`);
+        this.dispatchEvent(new Event('input')); 
+      });
+      
+      // Close dropdown when clicking outside
+      input.addEventListener('blur', function(){ 
+        setTimeout(() => dropdown.classList.add('hidden'), 200);
+      });
+    });
+  } catch (e) {
+    console.warn('loadSavedTeams failed', e);
+  }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', initCountrySelects);
+document.addEventListener('DOMContentLoaded', loadSavedTeams);

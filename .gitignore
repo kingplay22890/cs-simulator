@@ -14,7 +14,8 @@ Thumbs.db
 .vscode/
 
 # Local config (do NOT commit real keys)
-js/config.js
+js/config.local.js
+.env.local
 
 # Python http.server cache (if any)
 __pycache__/

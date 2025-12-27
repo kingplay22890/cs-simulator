@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ratings Archive</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { color:#e5e7eb; }
+    .archive-list { max-width:1200px; margin:0 auto; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-4">
+  <div class="bg-gray-800 p-8 rounded-xl shadow-lg max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-bold tracking-tight">Ratings Archive</h1>
+      <div class="flex gap-2">
+        <a href="ratings.html" class="px-3 py-1 bg-gray-700 rounded text-sm">BACK TO RATINGS</a>
+        <button id="refreshArchiveBtn" class="px-3 py-1 bg-blue-600 rounded text-sm">REFRESH</button>
+      </div>
+    </div>
+
+    <div id="archiveControls" class="mb-4">
+      <label class="mr-2">View:</label>
+      <button id="viewTableBtn" class="px-2 py-1 bg-gray-700 rounded text-sm">TABLE</button>
+      <button id="viewCardsBtn" class="px-2 py-1 bg-gray-700 rounded text-sm">CARDS</button>
+    </div>
+
+    <div id="archiveList" class="archive-list"></div>
+    <div id="ratingsContainer" class="mt-6"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/countries.js"></script>
+  <script src="js/rating-archive.js"></script>
+  <script src="js/ratings.js"></script>
+  <script>
+    function getQueryParam(name){ const params = new URLSearchParams(location.search); return params.get(name); }
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const archive = window.ratingArchive ? window.ratingArchive.getArchive() : (JSON.parse(localStorage.getItem('cs_ratings_archive')||'[]'));
+      const listEl = document.getElementById('archiveList');
+      const container = document.getElementById('ratingsContainer');
+      const refreshBtn = document.getElementById('refreshArchiveBtn');
+      const viewTableBtn = document.getElementById('viewTableBtn');
+      const viewCardsBtn = document.getElementById('viewCardsBtn');
+
+      function renderList(){
+        listEl.innerHTML = '';
+        if (!archive || archive.length === 0) { listEl.innerHTML = '<div class="p-4 text-gray-400">No snapshots yet</div>'; return; }
+        const ul = document.createElement('div'); ul.className='space-y-2';
+        archive.forEach(s=>{
+          const d = new Date(s.date);
+          const el = document.createElement('div'); el.className='flex items-center justify-between p-3 bg-gray-800 rounded';
+          el.innerHTML = `<div><div class="font-medium">${d.toLocaleString()}</div><div class="text-sm text-gray-400">${s.teams.length} teams ${s.weekId?(' — '+s.weekId):''}</div></div><div class="flex gap-2"><a class="px-3 py-1 bg-blue-600 rounded text-sm" href="?week=${encodeURIComponent(s.weekId||s.date)}">View</a><button data-week="${encodeURIComponent(s.weekId||s.date)}" class="px-3 py-1 bg-red-600 rounded text-sm del-snap">Delete</button></div>`;
+          ul.appendChild(el);
+        });
+        listEl.appendChild(ul);
+        listEl.querySelectorAll('.del-snap').forEach(btn=> btn.addEventListener('click',(e)=>{
+          const week = decodeURIComponent(e.currentTarget.dataset.week);
+          if (!confirm('Delete snapshot?')) return;
+          const idx = archive.findIndex(s=> (s.weekId===week) || (s.date===week));
+          if (idx>=0){ archive.splice(idx,1); localStorage.setItem('cs_ratings_archive', JSON.stringify(archive)); renderList(); }
+        }));
+      }
+
+      function renderSnapshotByWeek(weekId){
+        const snap = archive.find(s=> s.weekId===weekId || s.date===weekId);
+        if (!snap){ container.innerHTML = '<div class="p-4 text-red-400">Snapshot not found</div>'; return; }
+        container.innerHTML = '';
+        const teams = (snap.teams||[]).slice().sort((a,b)=> (b.rating||0)-(a.rating||0));
+        const mode = window.currentViewMode || 'table';
+        if (mode === 'table' && typeof renderTable === 'function') renderTable(teams, container, {});
+        else if (mode === 'cards' && typeof renderCards === 'function') renderCards(teams, container, {});
+        else {
+          const rows = teams.map(t=>`<tr><td>${t.name}</td><td>${t.country||'-'}</td><td>${t.region||'-'}</td><td>${t.rating}</td></tr>`).join('');
+          container.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>Team</th><th>Country</th><th>Region</th><th>Rating</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        }
+      }
+
+      refreshBtn.addEventListener('click', ()=> location.reload());
+      viewTableBtn.addEventListener('click', ()=>{ window.currentViewMode='table'; const w = getQueryParam('week'); if (w) renderSnapshotByWeek(w); else renderList(); });
+      viewCardsBtn.addEventListener('click', ()=>{ window.currentViewMode='cards'; const w = getQueryParam('week'); if (w) renderSnapshotByWeek(w); else renderList(); });
+
+      const week = getQueryParam('week');
+      if (week) {
+        renderSnapshotByWeek(week);
+      } else {
+        renderList();
+      }
+    });
+  </script>
+</body>
+</html>

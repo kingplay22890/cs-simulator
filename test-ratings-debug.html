@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест загрузки команд в рейтинге</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-6">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">🧪 Диагностика рейтингов</h1>
+        
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-bold mb-4">1. Команды в localStorage</h2>
+            <div id="teamsInfo" class="bg-gray-700 p-4 rounded text-sm font-mono whitespace-pre-wrap break-words max-h-96 overflow-y-auto"></div>
+        </div>
+        
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-bold mb-4">2. Создать тестовую команду</h2>
+            <button onclick="createTestTeam()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mb-4">
+                ✨ Создать тестовую команду
+            </button>
+            <div id="testStatus" class="text-sm text-gray-300"></div>
+        </div>
+        
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-bold mb-4">3. Очистить localStorage</h2>
+            <button onclick="clearStorage()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                🗑️ Очистить все
+            </button>
+        </div>
+        
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h2 class="text-xl font-bold mb-4">4. Ссылки</h2>
+            <ul class="space-y-2">
+                <li><a href="index.html" class="text-blue-400 hover:text-blue-300">📱 Главная страница</a></li>
+                <li><a href="ratings.html" class="text-blue-400 hover:text-blue-300">📊 Рейтинги</a></li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function displayTeams() {
+            const raw = localStorage.getItem('cs_teams');
+            const teams = JSON.parse(raw || '[]');
+            const info = document.getElementById('teamsInfo');
+            
+            if (teams.length === 0) {
+                info.textContent = '❌ Команд не найдено\n\nСоздайте команду на главной странице или нажмите кнопку ниже.';
+                info.className += ' text-red-400';
+            } else {
+                info.textContent = `✅ Найдено ${teams.length} команд:\n\n` + 
+                    teams.map((t, i) => `${i+1}. ${t.name} (Rating: ${t.rating})`).join('\n') + 
+                    '\n\n' + JSON.stringify(teams, null, 2);
+                info.className += ' text-green-400';
+            }
+        }
+        
+        function createTestTeam() {
+            const raw = localStorage.getItem('cs_teams');
+            let teams = JSON.parse(raw || '[]');
+            
+            const testTeam = {
+                id: 'test_team_' + Date.now(),
+                name: 'Test Team ' + Date.now(),
+                logoUrl: 'https://via.placeholder.com/64',
+                country: 'Sweden',
+                region: 'Europe',
+                players: [
+                    { id: 'p1', name: 'Player 1', rating: 1.5, photoUrl: '', status: 'active' },
+                    { id: 'p2', name: 'Player 2', rating: 1.3, photoUrl: '', status: 'active' },
+                    { id: 'p3', name: 'Player 3', rating: 1.2, photoUrl: '', status: 'active' },
+                    { id: 'p4', name: 'Player 4', rating: 1.1, photoUrl: '', status: 'active' },
+                    { id: 'p5', name: 'Player 5', rating: 1.0, photoUrl: '', status: 'active' }
+                ],
+                rating: 1500,
+                history: [],
+                awards: []
+            };
+            
+            teams.push(testTeam);
+            localStorage.setItem('cs_teams', JSON.stringify(teams));
+            
+            document.getElementById('testStatus').innerHTML = `
+                <p class="text-green-400">✅ Команда создана!</p>
+                <p class="text-sm mt-2">Имя: ${testTeam.name}</p>
+                <p class="text-sm">Страна: ${testTeam.country}</p>
+                <p class="text-sm">Рейтинг: ${testTeam.rating}</p>
+            `;
+            
+            displayTeams();
+        }
+        
+        function clearStorage() {
+            if (confirm('Вы уверены? Это удалит ВСЕ команды!')) {
+                localStorage.removeItem('cs_teams');
+                localStorage.removeItem('ratingsViewMode');
+                localStorage.removeItem('ratingsRegionFilter');
+                alert('✓ localStorage очищен');
+                displayTeams();
+            }
+        }
+        
+        // При загрузке показываем информацию
+        displayTeams();
+    </script>
+</body>
+</html>

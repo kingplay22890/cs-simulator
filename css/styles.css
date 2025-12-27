@@ -19,6 +19,7 @@ input[type="number"] {
     object-fit: contain;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
     transition: transform 0.3s ease;
+    border-radius: 6px; /* make logos rectangular with slight rounded corners */
 }
 
 .team-logo:hover {
@@ -339,6 +340,20 @@ label {
     position: relative;
 }
 
+/* Player search input and highlight */
+.player-search-input {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+}
+
+.player-highlight {
+    background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(59,130,246,0.06));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
 .team-search-item {
     display: flex;
     align-items: center;
@@ -351,7 +366,7 @@ label {
 
 .team-search-item:last-child {
     border-bottom: none;
-}
+}   
 
 .team-search-item:hover {
     background: rgba(59, 130, 246, 0.2);
@@ -396,6 +411,63 @@ label {
     color: #94a3b8;
     font-style: italic;
 }
+
+/* Flags styling */
+.rating-flag, .inline-flag {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    border-radius: 2px;
+}
+
+.rating-flag-img {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    height: 24px;
+    max-width: 36px;
+    object-fit: contain;
+    border-radius: 2px;
+}
+
+.rating-table-country {
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rating-table-country .rating-flag-img {
+    height: 20px;
+    max-width: 30px;
+}
+
+.rating-table-value {
+    white-space: nowrap;
+}
+
+.rating-table-logo-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+/* Rank change badges */
+.rating-change-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+.rating-change-badge.up { background: linear-gradient(90deg,#10b981,#059669); color: #042f1f; }
+.rating-change-badge.down { background: linear-gradient(90deg,#ef4444,#b91c1c); color: #2b0505; }
+.rank-change { margin-left:6px; font-weight:700; font-size:0.85rem; display:inline-flex; align-items:center; gap:6px; padding:2px 6px; border-radius:6px; }
+.rank-change.up { color: #064e3b; background: linear-gradient(90deg,#bbf7d0,#86efac); }
+.rank-change.down { color: #3b0211; background: linear-gradient(90deg,#fecaca,#f87171); }
 
 /* Search input with icon */
 .team-search-input-wrapper {
@@ -867,9 +939,9 @@ label {
     right: 0;
     bottom: 0;
     background: linear-gradient(to bottom, 
-        rgba(15, 23, 42, 0.3) 0%, 
-        rgba(15, 23, 42, 0.5) 40%,
-        rgba(15, 23, 42, 0.95) 100%);
+        rgba(15, 23, 42, 0.1) 0%, 
+        rgba(15, 23, 42, 0.2) 40%,
+        rgba(15, 23, 42, 0.4) 100%);
     z-index: 1;
 }
 
@@ -1169,6 +1241,22 @@ label {
     object-fit: contain;
 }
 
+.picker-logo-wrap {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+}
+.veto-picker-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.85);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    background: rgba(255,255,255,0.02);
+    object-fit: cover;
+}
+
 .veto-action-badge {
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
@@ -1181,6 +1269,30 @@ label {
     border: 2px solid rgba(255, 255, 255, 0.2);
     backdrop-filter: blur(10px);
 }
+
+/* action colors */
+.veto-action-badge.pick.team1 { background: linear-gradient(180deg,#2563eb,#1e40af); color: #fff; border-color: rgba(255,255,255,0.08); }
+.veto-action-badge.pick.team2 { background: linear-gradient(180deg,#f97316,#ea580c); color: #fff; border-color: rgba(255,255,255,0.08); }
+.veto-action-badge.ban { background: rgba(148,163,184,0.12); color: #e6eef8; border-color: rgba(255,255,255,0.06); }
+.veto-action-badge.decider { background: linear-gradient(180deg,#94a3b8,#64748b); color: #fff; border-color: rgba(255,255,255,0.06); }
+
+.veto-center-logo {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15,23,42,0.65);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+    border: 2px solid rgba(255,255,255,0.06);
+}
+.veto-center-logo img { width:40px; height:40px; border-radius:50%; object-fit:cover; }
 
 .veto-map-number {
     font-size: 0.875rem;
@@ -1618,14 +1730,15 @@ label {
     height: 100%;
     object-fit: cover;
     border-radius: 0.5rem;
-    border: 2px solid rgba(96, 165, 250, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: none;
+    outline: none;
+    box-shadow: none;
     transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .player-banner-item:hover .player-banner-photo {
-    border-color: rgba(96, 165, 250, 0.6);
-    box-shadow: 0 6px 20px rgba(96, 165, 250, 0.3);
+    transform: scale(1.05);
 }
 
 .player-banner-photo-placeholder {
@@ -1639,8 +1752,11 @@ label {
     font-size: 3rem;
     font-weight: 700;
     color: white;
-    border: 2px solid rgba(96, 165, 250, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: none;
+    outline: none;
+    box-shadow: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
 .player-banner-photo-placeholder[style*="display:none"] {
@@ -1668,7 +1784,6 @@ label {
 .player-banner-item.benched .player-banner-photo-placeholder {
     filter: grayscale(1);
     opacity: 0.55;
-    border-color: rgba(244, 192, 103, 0.6);
 }
 
 .player-banner-item.benched .player-banner-name {
@@ -2264,4 +2379,50 @@ label {
     margin-top: 2rem;
     padding-top: 2rem;
     border-top: 2px solid rgba(148, 163, 184, 0.2);
+}
+
+/* Map History Slider */
+#mapHistorySlider {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 0.5rem 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) rgba(15, 23, 42, 0.5);
+}
+
+#mapHistorySlider::-webkit-scrollbar {
+    height: 6px;
+}
+
+#mapHistorySlider::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 3px;
+}
+
+#mapHistorySlider::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+}
+
+#mapHistorySlider::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+}
+
+.map-history-match-card {
+    flex-shrink: 0;
+    width: 20rem;
+    padding: 1rem;
+    background: rgba(55, 65, 81, 0.5);
+    border: 1px solid rgba(107, 114, 128, 0.3);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.map-history-match-card:hover {
+    background: rgba(55, 65, 81, 0.7);
+    border-color: rgba(148, 163, 184, 0.5);
+    transform: translateY(-2px);
 }

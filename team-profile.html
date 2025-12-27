@@ -6,6 +6,7 @@
   <title>Профиль команды</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-gray-900 text-white p-6 min-h-screen">
 
@@ -24,6 +25,7 @@
         <div>
           <h1 id="teamName" class="text-2xl font-bold inline bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"></h1><button id="editProfileBtn" title="Редактировать профиль" class="ml-2 text-xl align-middle hover:scale-110 transition">✏️</button>
           <p class="text-blue-400 font-semibold"><span id="teamRank"></span> • <span id="teamRating"></span></p>
+          <div id="teamCountry" class="text-sm text-gray-400 mt-1"></div>
         </div>
       </div>
 
@@ -143,6 +145,14 @@
         </div>
       </div>
 
+      <!-- Страна/Регион -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-300 mb-2">Страна/Регион</label>
+        <select id="editTeamCountry" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition">
+          <option value="">Выберите страну</option>
+        </select>
+      </div>
+
       <!-- Игроки -->
       <div>
         <div class="flex items-center justify-between mb-3">
@@ -244,10 +254,29 @@
   </div>
 </div>
 
+<!-- МОДАЛЬНОЕ ОКНО ИСТОРИИ МАТЧЕЙ ПО КАРТЕ -->
+<div id="mapHistoryModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+  <div class="bg-gradient-to-br from-gray-800/95 to-gray-900/95 rounded-xl max-w-4xl w-full max-h-[95vh] overflow-y-auto border border-gray-700/50 shadow-2xl my-8">
+    <div class="sticky top-0 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700/50 p-6 flex items-center justify-between backdrop-blur-sm z-10">
+      <div>
+        <h2 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-transparent" id="mapHistoryTitle">История матчей</h2>
+        <p id="mapHistoryStats" class="text-sm text-gray-400 mt-2"></p>
+      </div>
+      <button onclick="closeMapHistoryModal()" class="text-gray-400 hover:text-white text-3xl font-bold transition">✕</button>
+    </div>
+    <div class="p-6">
+      <div id="mapHistoryTable" class="space-y-3">
+        <!-- Таблица матчей будет добавлена здесь -->
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/map-utils.js"></script>
+<script src="js/countries.js"></script>
 <script src="js/player-awards-store.js"></script>
 <script src="js/team-profile.js"></script>
 <script src="js/winrate-slider.js"></script>

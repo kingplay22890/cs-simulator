@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament View - CS Match Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            background: #1a1a2e;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .bracket-container {
+            display: flex;
+            gap: 40px;
+            padding: 32px;
+            overflow-x: auto;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8));
+            min-height: 600px;
+            position: relative;
+        }
+        .bracket-column {
+            min-width: 280px;
+            flex-shrink: 0;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .bracket-column::after {
+            content: '';
+            position: absolute;
+            right: -20px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.1));
+        }
+        .bracket-column:last-child::after {
+            display: none;
+        }
+        .bracket-column h3 {
+            margin: 0 0 24px 0;
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.1));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .match-card {
+            background: linear-gradient(135deg, rgba(15, 52, 96, 0.6), rgba(26, 84, 144, 0.4));
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .match-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+        }
+        .match-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+        }
+        .match-card.completed {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        .team-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 13px;
+        }
+        .team-row:last-child {
+            border-bottom: none;
+        }
+        .match-card.completed .team-row.winner {
+            color: #10b981;
+            font-weight: 600;
+        }
+        .match-card.completed .team-row.loser {
+            color: #6b7280;
+            opacity: 0.7;
+        }
+        .team-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+        }
+        .team-logo {
+            width: 28px;
+            height: 28px;
+            min-width: 28px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            object-fit: cover;
+        }
+        .team-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
+        }
+        .score {
+            min-width: 28px;
+            text-align: center;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div style="min-height: 100vh;">
+        <!-- Header -->
+        <header style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95)); border-bottom: 2px solid rgba(96, 165, 250, 0.3); position: sticky; top: 0; z-index: 40; backdrop-filter: blur(10px);">
+            <div style="max-width: 100%; margin: 0 auto; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h1 style="margin: 0; font-size: 32px; font-weight: 800; background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">🏆 <span id="tournamentTitle">Tournament</span></h1>
+                    <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Single / Double Elimination Bracket</p>
+                </div>
+                <a href="tournaments.html" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; transition: all 0.2s; display: inline-block; font-weight: 600; border: 1px solid rgba(59, 130, 246, 0.3);">← Back</a>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <main style="padding: 32px;">
+            <div id="bracketContent" style="display: flex; overflow-x: auto;">
+                <!-- Bracket will be rendered here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Match Preview Modal - HLTV Style -->
+    <div id="matchModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 50; overflow-y: auto;">
+        <div style="max-width: 1200px; width: 95%; margin: 0 auto; padding: 40px 20px;">
+            <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border-radius: 16px; border: 1px solid rgba(59, 130, 246, 0.2); box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+                <!-- Header -->
+                <div style="padding: 32px; border-bottom: 1px solid rgba(59, 130, 246, 0.2);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <div>
+                            <div style="font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;" id="matchTournamentName">Tournament</div>
+                            <h2 style="margin: 0; font-size: 32px; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" id="matchTitle">Team 1 vs Team 2</h2>
+                        </div>
+                        <button id="closeMatchBtn" style="background: rgba(55, 65, 81, 0.6); color: white; padding: 10px 20px; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; cursor: pointer; transition: all 0.2s; font-weight: 600;">✕ Закрыть</button>
+                    </div>
+                    <div id="matchHeaderContent"></div>
+                </div>
+                
+                <!-- Content -->
+                <div style="padding: 32px;">
+                    <div id="matchContent"></div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 40px; padding-top: 32px; border-top: 1px solid rgba(59, 130, 246, 0.2);">
+                        <button id="playMatchBtn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 14px 32px; border: none; border-radius: 10px; font-weight: 700; font-size: 16px; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">🎮 Играть матч</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/tournament-manager-v2.js"></script>
+    <script src="js/player-profile.js"></script>
+    <script>
+        // Ensure csApi is available globally
+        if (typeof window.csApi === 'undefined' && typeof csApi !== 'undefined') {
+            window.csApi = csApi;
+        }
+    </script>
+    <script>
+        // Load tournament from URL or localStorage
+        const tournamentId = new URLSearchParams(window.location.search).get('id');
+        let currentTournament = null;
+
+        async function loadTournament() {
+            if (!tournamentId) {
+                document.getElementById('bracketContent').innerHTML = '<p class="text-gray-400">❌ Турнир не найден (ID отсутствует)</p>';
+                return;
+            }
+
+            try {
+                await tournamentManagerV2.loadTeams();
+                tournamentManagerV2.loadTournaments();
+                console.log('Available tournaments:', tournamentManagerV2.tournaments);
+                console.log('Looking for tournament ID:', tournamentId);
+                
+                currentTournament = tournamentManagerV2.getTournament(tournamentId);
+
+                // If tournament not found, try to load the first available one
+                if (!currentTournament) {
+                    // First try to restore from sessionStorage (recently created tournament)
+                    try {
+                        const rawLast = sessionStorage.getItem('last_created_tournament');
+                        if (rawLast) {
+                            const parsed = JSON.parse(rawLast);
+                            if (parsed && parsed.tournament && (parsed.tournament.id === tournamentId || String(parsed.tournament.id) === String(tournamentId))) {
+                                console.log('Restoring tournament from sessionStorage:', parsed.tournament.id);
+                                // Add to manager and use
+                                tournamentManagerV2.tournaments.push(parsed.tournament);
+                                tournamentManagerV2.saveTournaments();
+                                currentTournament = parsed.tournament;
+                                // cleanup
+                                sessionStorage.removeItem('last_created_tournament');
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Could not restore last_created_tournament from sessionStorage', e);
+                    }
+                }
+
+                if (!currentTournament && tournamentManagerV2.tournaments.length > 0) {
+                    console.log('Tournament not found, loading first available:', tournamentManagerV2.tournaments[0].id);
+                    currentTournament = tournamentManagerV2.tournaments[0];
+                    // Update URL to reflect the actual tournament
+                    window.history.replaceState({}, '', `tournament-view.html?id=${encodeURIComponent(currentTournament.id)}`);
+                }
+
+                if (!currentTournament) {
+                    document.getElementById('bracketContent').innerHTML = `<p class="text-gray-400">❌ Турниры не найдены<br/><a href="tournaments.html" class="text-blue-400 hover:text-blue-300">← Вернуться в управление турнирами</a></p>`;
+                    return;
+                }
+
+                document.getElementById('tournamentTitle').textContent = currentTournament.name;
+                renderBracket();
+            } catch (err) {
+                console.error('Error loading tournament:', err);
+                document.getElementById('bracketContent').innerHTML = `<p class="text-gray-400">❌ Ошибка загрузки: ${err.message}</p>`;
+            }
+        }
+
+        function renderBracket() {
+            const p = currentTournament.playoff;
+            let html = '';
+
+            if (!p) {
+                html = '<p class="text-gray-400">❌ Плей-офф не инициализирован</p>';
+            } else if (p.type === 'single') {
+                html = renderSingleElim();
+            } else if (p.type === 'double') {
+                html = renderDoubleElim();
+            } else {
+                html = '<p class="text-gray-400">❌ Неизвестный формат плей-офф</p>';
+            }
+
+            document.getElementById('bracketContent').innerHTML = html;
+            attachMatchHandlers();
+        }
+
+        function renderSingleElim() {
+            if (!currentTournament.playoff || !currentTournament.playoff.rounds) {
+                return '<p class="text-gray-400">❌ Раунды плей-офф не найдены</p>';
+            }
+            const rounds = currentTournament.playoff.rounds || [];
+            let html = '<div class="bracket-container">';
+
+            rounds.forEach((round, rIdx) => {
+                const isLast = rIdx === rounds.length - 1;
+                const title = isLast ? '🏆 ФИНАЛ' : ['⚔️ Четвертьфиналы', '⚔️ Полуфиналы'][rIdx] || `Раунд ${round.number || rIdx + 1}`;
+                
+                html += `<div class="bracket-column">`;
+                html += `<h3>${title}</h3>`;
+                
+                const matches = round.matches || [];
+                const totalMatches = matches.length;
+                const maxMatches = Math.max(...rounds.map(r => (r.matches || []).length));
+                
+                // Calculate spacing to center matches vertically
+                const containerHeight = maxMatches * 140; // approximate height per match
+                
+                matches.forEach((m, matchIdx) => {
+                    const t1 = tournamentManagerV2.getTeamById(m.team1Id);
+                    const t2 = tournamentManagerV2.getTeamById(m.team2Id);
+                    const winner = m.winner;
+                    const completed = m.completed;
+                    
+                    // Calculate vertical position to center matches
+                    const matchSpacing = containerHeight / (totalMatches + 1);
+                    const topPosition = matchSpacing * (matchIdx + 1) - 50;
+
+                    html += `
+                        <div class="match-card ${completed ? 'completed' : ''}" 
+                             style="margin-top: ${matchIdx === 0 ? '0' : '24'}px;" 
+                             data-match="${m.id}" 
+                             data-team1="${m.team1Id}" 
+                             data-team2="${m.team2Id || ''}">
+                            <div class="team-row ${winner === m.team1Id ? 'winner' : completed && winner !== m.team1Id ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t1?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t1?.name || 'TBD'}">
+                                    <span class="team-name">${t1?.name || 'TBD'}</span>
+                                </div>
+                                ${completed ? `<div class="score">${m.team1Score ?? '—'}</div>` : ''}
+                            </div>
+                            <div class="team-row ${winner === m.team2Id ? 'winner' : completed && winner !== m.team2Id ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t2?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t2?.name || 'TBD'}">
+                                    <span class="team-name">${t2?.name || 'TBD'}</span>
+                                </div>
+                                ${completed ? `<div class="score">${m.team2Score ?? '—'}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            });
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderDoubleElim() {
+            if (!currentTournament.playoff) {
+                return '<p class="text-gray-400">❌ Плей-офф не инициализирован</p>';
+            }
+            let html = '<div class="bracket-container">';
+
+            // Winners bracket
+            html += `<div class="bracket-column"><h3 style="color: #60a5fa;">👑 Winners</h3>`;
+            (currentTournament.playoff.winnersBracket?.rounds || []).forEach((round, rIdx) => {
+                (round.matches || []).forEach((m, matchIdx) => {
+                    const t1 = tournamentManagerV2.getTeamById(m.team1Id);
+                    const t2 = tournamentManagerV2.getTeamById(m.team2Id);
+                    html += `
+                        <div class="match-card ${m.completed ? 'completed' : ''}" 
+                             style="margin-top: ${matchIdx === 0 ? '0' : '24'}px;" 
+                             data-match="${m.id}" 
+                             data-team1="${m.team1Id}" 
+                             data-team2="${m.team2Id || ''}">
+                            <div class="team-row ${m.winner === m.team1Id ? 'winner' : m.completed ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t1?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t1?.name || 'TBD'}">
+                                    <span class="team-name">${t1?.name || 'TBD'}</span>
+                                </div>
+                                ${m.completed ? `<div class="score">${m.team1Score ?? '—'}</div>` : ''}
+                            </div>
+                            <div class="team-row ${m.winner === m.team2Id ? 'winner' : m.completed ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t2?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t2?.name || 'TBD'}">
+                                    <span class="team-name">${t2?.name || 'TBD'}</span>
+                                </div>
+                                ${m.completed ? `<div class="score">${m.team2Score ?? '—'}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            html += `</div>`;
+
+            // Losers bracket
+            html += `<div class="bracket-column"><h3 style="color: #f87171;">💀 Losers</h3>`;
+            (currentTournament.playoff.losersBracket?.rounds || []).forEach((round, rIdx) => {
+                (round.matches || []).forEach((m, matchIdx) => {
+                    const t1 = tournamentManagerV2.getTeamById(m.team1Id);
+                    const t2 = tournamentManagerV2.getTeamById(m.team2Id);
+                    html += `
+                        <div class="match-card ${m.completed ? 'completed' : ''}" 
+                             style="margin-top: ${matchIdx === 0 ? '0' : '24'}px;" 
+                             data-match="${m.id}" 
+                             data-team1="${m.team1Id}" 
+                             data-team2="${m.team2Id || ''}">
+                            <div class="team-row ${m.winner === m.team1Id ? 'winner' : m.completed ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t1?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t1?.name || 'TBD'}">
+                                    <span class="team-name">${t1?.name || 'TBD'}</span>
+                                </div>
+                                ${m.completed ? `<div class="score">${m.team1Score ?? '—'}</div>` : ''}
+                            </div>
+                            <div class="team-row ${m.winner === m.team2Id ? 'winner' : m.completed ? 'loser' : ''}">
+                                <div class="team-info">
+                                    <img src="${t2?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t2?.name || 'TBD'}">
+                                    <span class="team-name">${t2?.name || 'TBD'}</span>
+                                </div>
+                                ${m.completed ? `<div class="score">${m.team2Score ?? '—'}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            html += `</div>`;
+
+            // Grand final
+            html += `<div class="bracket-column"><h3 style="color: #fbbf24;">🏆 Final</h3>`;
+            const gf = currentTournament.playoff.grand || {};
+            const t1 = tournamentManagerV2.getTeamById(gf.team1Id);
+            const t2 = tournamentManagerV2.getTeamById(gf.team2Id);
+            html += `
+                <div class="match-card ${gf.completed ? 'completed' : ''}" 
+                     data-match="${gf.id || 'grand'}" 
+                     data-team1="${gf.team1Id || ''}" 
+                     data-team2="${gf.team2Id || ''}">
+                    <div class="team-row ${gf.winner === gf.team1Id ? 'winner' : gf.completed ? 'loser' : ''}">
+                        <div class="team-info">
+                            <img src="${t1?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t1?.name || '—'}">
+                            <span class="team-name">${t1?.name || '—'}</span>
+                        </div>
+                        ${gf.completed ? `<div class="score">${gf.team1Score ?? '—'}</div>` : ''}
+                    </div>
+                    <div class="team-row ${gf.winner === gf.team2Id ? 'winner' : gf.completed ? 'loser' : ''}">
+                        <div class="team-info">
+                            <img src="${t2?.logoUrl || 'https://via.placeholder.com/32'}" class="team-logo" alt="${t2?.name || '—'}">
+                            <span class="team-name">${t2?.name || '—'}</span>
+                        </div>
+                        ${gf.completed ? `<div class="score">${gf.team2Score ?? '—'}</div>` : ''}
+                    </div>
+                </div>
+            `;
+            html += `</div></div>`;
+
+            return html;
+        }
+
+        function attachMatchHandlers() {
+            document.querySelectorAll('.match-card').forEach(card => {
+                    card.addEventListener('click', async () => {
+                        const matchId = card.getAttribute('data-match');
+                        const team1Id = card.getAttribute('data-team1');
+                        const team2Id = card.getAttribute('data-team2');
+                        await openMatchPreview(team1Id, team2Id, matchId);
+                    });
+                });
+        }
+
+            async function openMatchPreview(team1Id, team2Id, matchId) {
+                    console.log('openMatchPreview called with:', { team1Id, team2Id, matchId });
+                    let team1, team2, winChances, history;
+                    try {
+                        team1 = tournamentManagerV2.getTeamById(team1Id);
+                        team2 = team2Id ? tournamentManagerV2.getTeamById(team2Id) : null;
+
+                        winChances = tournamentManagerV2.calculateWinChance(team1Id, team2Id);
+                        history = tournamentManagerV2.getMatchHistory(team1Id, team2Id) || [];
+                    } catch (err) {
+                        console.error('Error preparing match preview data:', err);
+                        // Fallback minimal values
+                        team1 = tournamentManagerV2.getTeamById(team1Id) || null;
+                        team2 = tournamentManagerV2.getTeamById(team2Id) || null;
+                        winChances = { a: 50, b: 50 };
+                        history = [];
+                    }
+
+            const getAvgRating = (team) => {
+                // Prefer team.rating if available and looks like big-scale (e.g. > 10)
+                if (team && typeof team.rating === 'number' && team.rating > 10) return Math.round(team.rating);
+                if (!team?.players?.length) return 1500;
+                const vals = team.players.map(p => {
+                    // if player has small normalized rating (like 1.12), try to use career avg if available
+                    if (typeof p.rating === 'number') return p.rating;
+                    return 1500;
+                });
+                const avg = vals.reduce((s,v)=>s+v,0)/vals.length;
+                // If values seem small (<=10), assume they are 1.x and scale to 1500 range
+                if (avg <= 10) return Math.round(avg * 1000);
+                return Math.round(avg);
+            };
+
+            // Enrich player ratings from Supabase player_stats if available
+            if (window.csApi && window.csApi.fetchPlayerStats) {
+                try {
+                    const allPlayers = [];
+                    (team1?.players || []).forEach(p => allPlayers.push({ team:'a', name: p?.name, obj:p }));
+                    (team2?.players || []).forEach(p => allPlayers.push({ team:'b', name: p?.name, obj:p }));
+                    const uniq = [...new Map(allPlayers.map(x=>[x.name,x])).values()];
+                    await Promise.all(uniq.map(async entry => {
+                        if (!entry.name) return;
+                        try {
+                            const stats = await window.csApi.fetchPlayerStats(entry.name);
+                            if (stats) {
+                                // prefer avg_rating or win_rate fields
+                                if (typeof stats.avg_rating === 'number') entry.obj.rating = stats.avg_rating;
+                                else if (typeof stats.best_rating === 'number') entry.obj.rating = stats.best_rating;
+                                else if (typeof stats.win_rate === 'number') entry.obj.rating = Math.round(stats.win_rate * 1000) / 100; // fallback
+                            }
+                        } catch(e){/* ignore */}
+                    }));
+                } catch(e){ console.warn('Failed to enrich player stats', e); }
+            }
+
+            // Compute both normalized and scaled ratings for display
+            const rawAvg = (team) => {
+                if (!team) return null;
+                if (typeof team.rating === 'number') return team.rating;
+                if (!team.players || team.players.length === 0) return null;
+                const vals = team.players.map(p => typeof p.rating === 'number' ? p.rating : null).filter(v => v !== null);
+                if (vals.length === 0) return null;
+                const avg = vals.reduce((s,v)=>s+v,0)/vals.length;
+                return avg;
+            };
+
+            const raw1 = rawAvg(team1);
+            const raw2 = rawAvg(team2);
+            const scaled = (v)=> v==null? null : (v <= 10 ? Math.round(v*1000) : Math.round(v));
+            const r1 = scaled(raw1) || 1500;
+            const r2 = scaled(raw2) || 1500;
+            const r1Display = raw1 == null ? r1 : (raw1 <= 10 ? `${raw1.toFixed(2)} (${scaled(raw1)})` : `${Math.round(raw1)}`);
+            const r2Display = raw2 == null ? r2 : (raw2 <= 10 ? `${raw2.toFixed(2)} (${scaled(raw2)})` : `${Math.round(raw2)}`);
+
+            let historyHtml = '';
+            try {
+                console.log('Match preview data:', { team1, team2, winChances, historyLen: history.length, historySample: history.slice(0,3) });
+                if (history.length === 0) {
+                    historyHtml = `<div style="font-size: 13px; color: #9ca3af; font-style: italic;">Встреч не было</div>`;
+                } else {
+                historyHtml = '<div style="font-size: 13px; display: flex; flex-direction: column; gap: 8px;">';
+                history.slice(-5).reverse().forEach(h => {
+                    const when = h.date ? new Date(h.date).toLocaleDateString('ru-RU') : '?';
+                    const raw = h.raw || h;
+                    // determine team names
+                    const tA = raw.teamAName || raw.team1Name || raw.teamA || team1?.name || '';
+                    const tB = raw.teamBName || raw.team2Name || raw.teamB || team2?.name || '';
+                    // determine score
+                    let scoreStr = '';
+                    if (raw.scoreA !== undefined && raw.scoreB !== undefined) scoreStr = `${raw.scoreA}:${raw.scoreB}`;
+                    else if (raw.team1Score !== undefined && raw.team2Score !== undefined) scoreStr = `${raw.team1Score}:${raw.team2Score}`;
+                    else if (raw.score) scoreStr = raw.score;
+                    else if (raw.final && typeof raw.final === 'string') scoreStr = raw.final;
+
+                    // find logos by name if possible
+                    const findTeamByName = (n) => {
+                        if (!n) return null;
+                        const norm = (s) => (s||'').toString().trim().toLowerCase();
+                        return tournamentManagerV2.allTeams.find(tt => norm(tt.name) === norm(n)) || null;
+                    };
+                    const teamAObj = findTeamByName(tA);
+                    const teamBObj = findTeamByName(tB);
+
+                    // winner label
+                    let winnerLabel = '?';
+                    if (h.winnerId === team1Id) winnerLabel = team1?.name || tA || '?';
+                    else if (h.winnerId === team2Id) winnerLabel = team2?.name || tB || '?';
+                    else if (raw.winnerName) winnerLabel = raw.winnerName;
+
+                    historyHtml += `<div style="display:flex;align-items:center;justify-content:space-between;color:#e5e7eb;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.02)">`;
+                    historyHtml += `<div style="display:flex;gap:8px;align-items:center;"><img src="${teamAObj?.logoUrl||'https://via.placeholder.com/24'}" style="width:24px;height:24px;border-radius:3px;">`;
+                    historyHtml += `<div style="min-width:140px">${when} <div style=\"font-size:12px;color:#94a3b8;\">${tA} vs ${tB}</div></div></div>`;
+                    historyHtml += `<div style="text-align:right;min-width:140px">`;
+                    if (scoreStr) historyHtml += `<div style="font-weight:700">${scoreStr}</div>`;
+                    historyHtml += `<div style="color:${(winnerLabel===team1?.name)?'#93c5fd':'#fca5a5'};font-weight:600">${winnerLabel}</div>`;
+                    historyHtml += `</div></div>`;
+                });
+                historyHtml += '</div>';
+                }
+            } catch (err) {
+                console.error('Error building historyHtml:', err);
+                historyHtml = '<div style="color: #f87171; font-weight: 600;">Ошибка при отображении истории (проверь консоль)</div>';
+            }
+
+
+            // Set tournament name and match title
+            document.getElementById('matchTournamentName').textContent = currentTournament?.name || 'Tournament';
+            document.getElementById('matchTitle').textContent = `${team1?.name || 'Team 1'} vs ${team2?.name || 'Team 2'}`;
+            
+            // Header with team logos (horizontal layout: logo + name to the right)
+            const headerContent = `
+                <div style="display:flex;align-items:center;justify-content:center;gap:40px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <img src="${team1?.logoUrl || 'https://via.placeholder.com/80'}" style="width:80px;height:80px;border-radius:12px;border:2px solid rgba(59,130,246,0.3);">
+                        <div style="display:flex;flex-direction:column;align-items:flex-start;">
+                            <div style="font-size:20px;font-weight:800;color:#e5f2ff;">${team1?.name || 'Team 1'}</div>
+                            <div style="font-size:14px;color:#94a3b8;margin-top:6px;">Rating: ${r1Display}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:28px;font-weight:900;color:#94a3b8;">VS</div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;margin-right:8px;">
+                            <div style="font-size:20px;font-weight:800;color:#ffecec;">${team2?.name || 'Team 2'}</div>
+                            <div style="font-size:14px;color:#94a3b8;margin-top:6px;">Rating: ${r2Display}</div>
+                        </div>
+                        <img src="${team2?.logoUrl || 'https://via.placeholder.com/80'}" style="width:80px;height:80px;border-radius:12px;border:2px solid rgba(239,68,68,0.3);">
+                    </div>
+                </div>
+            `;
+            document.getElementById('matchHeaderContent').innerHTML = headerContent;
+
+            // Get recent matches for both teams (sort by date desc, newest first)
+            const getRecentMatches = (team) => {
+                if (!team?.history || !Array.isArray(team.history)) return [];
+                // clone and sort by known date fields (most recent first)
+                const arr = team.history.slice();
+                const getTime = (m) => {
+                    const d = m?.date || m?.matchDate || m?.playedAt || m?.when || m?.timestamp || m?.time || null;
+                    const t = d ? new Date(d).getTime() : 0;
+                    return isNaN(t) ? 0 : t;
+                };
+                arr.sort((a, b) => getTime(b) - getTime(a));
+                return arr; // return all matches, newest first
+            };
+            const team1Recent = getRecentMatches(team1);
+            const team2Recent = getRecentMatches(team2);
+
+            // Build content
+            const content = `
+                <!-- Analytics Center -->
+                <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(239, 68, 68, 0.1)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 24px; margin-bottom: 32px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #e2e8f0;">Analytics Center - Pick a winner</h3>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:16px;">
+                        <button style="background: rgba(59,130,246,0.12); border:2px solid rgba(59,130,246,0.25); border-radius:8px; padding:12px 20px; cursor:pointer;">
+                            <img src="${team1?.logoUrl || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:6px;">
+                        </button>
+
+                        <div style="flex:1;position:relative;height:44px;background:rgba(15,23,42,0.6);border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);">
+                            <!-- left blue bar -->
+                            <div style="position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#3b82f6,#2563eb);width:${winChances.a}%;transition:width:0.5s;z-index:1;"></div>
+                            <!-- right red bar -->
+                            <div style="position:absolute;right:0;top:0;height:100%;background:linear-gradient(90deg,#fb7185,#ef4444);width:${winChances.b}%;transition:width:0.5s;z-index:1;"></div>
+                            <!-- central divider (optional) -->
+                            <div style="position:absolute;left:50%;top:0;height:100%;width:2px;background:rgba(255,255,255,0.12);transform:translateX(-50%);z-index:2;"></div>
+                            <!-- label -->
+                            <div style="position:relative;z-index:3;height:100%;display:flex;align-items:center;justify-content:center;font-weight:800;color:white;font-size:15px;">
+                                ${winChances.a}% - ${winChances.b}%
+                            </div>
+                        </div>
+
+                        <button style="background: rgba(239,68,68,0.12); border:2px solid rgba(239,68,68,0.25); border-radius:8px; padding:12px 20px; cursor:pointer;">
+                            <img src="${team2?.logoUrl || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:6px;">
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Lineups -->
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #e2e8f0;">Lineups</h3>
+                        <div style="font-size: 13px; color: #94a3b8; background: rgba(59, 130, 246, 0.1); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                            💡 Выберите по одному игроку из каждой команды для сравнения
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <!-- Team 1 Lineup -->
+                        <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 20px;">
+                            <div style="font-size: 16px; font-weight: 700; color: #60a5fa; margin-bottom: 16px;">${team1?.name || 'Team 1'}</div>
+                            ${(team1?.players || []).map((p, idx) => `
+                                <div class="player-selectable player-team1" data-player="${p?.name || ''}" data-team="1" style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(30, 41, 59, 0.4); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent;" 
+                                     onmouseover="if (!this.classList.contains('selected')) { this.style.borderColor='rgba(59, 130, 246, 0.4)'; this.style.background='rgba(59, 130, 246, 0.1)'; }" 
+                                     onmouseout="if (!this.classList.contains('selected')) { this.style.borderColor='transparent'; this.style.background='rgba(30, 41, 59, 0.4)'; }"
+                                     onclick="selectPlayerForComparison('${p?.name || ''}', 1)">
+                                    <div style="width: 40px; height: 40px; border-radius: 6px; background: rgba(59, 130, 246, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #60a5fa;">${idx + 1}</div>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; color: #e2e8f0;">${p?.name || 'Player'}</div>
+                                        <div style="font-size: 12px; color: #94a3b8;">Rating: ${typeof p?.rating === 'number' ? (p.rating <= 10 ? `${p.rating.toFixed(2)} (${Math.round(p.rating*1000)})` : Math.round(p.rating)) : '—'}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <!-- Team 2 Lineup -->
+                        <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 20px;">
+                            <div style="font-size: 16px; font-weight: 700; color: #f87171; margin-bottom: 16px;">${team2?.name || 'Team 2'}</div>
+                            ${(team2?.players || []).map((p, idx) => `
+                                <div class="player-selectable player-team2" data-player="${p?.name || ''}" data-team="2" style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(30, 41, 59, 0.4); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent;" 
+                                     onmouseover="if (!this.classList.contains('selected')) { this.style.borderColor='rgba(239, 68, 68, 0.4)'; this.style.background='rgba(239, 68, 68, 0.1)'; }" 
+                                     onmouseout="if (!this.classList.contains('selected')) { this.style.borderColor='transparent'; this.style.background='rgba(30, 41, 59, 0.4)'; }"
+                                     onclick="selectPlayerForComparison('${p?.name || ''}', 2)">
+                                    <div style="width: 40px; height: 40px; border-radius: 6px; background: rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #f87171;">${idx + 1}</div>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; color: #e2e8f0;">${p?.name || 'Player'}</div>
+                                        <div style="font-size: 12px; color: #94a3b8;">Rating: ${typeof p?.rating === 'number' ? (p.rating <= 10 ? `${p.rating.toFixed(2)} (${Math.round(p.rating*1000)})` : Math.round(p.rating)) : '—'}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Player Comparison Section -->
+                <div id="playerComparisonSection" style="margin-bottom: 32px; display: none;">
+                    <h3 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #e2e8f0;">HIGHLIGHTED STATS (Past 3 months)</h3>
+                    <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 24px;">
+                        <div id="playerComparisonContent" style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 32px; align-items: start;">
+                            <!-- Player 1 -->
+                            <div id="player1Comparison" style="text-align: center;">
+                                <a id="player1PhotoLink" href="#" style="text-decoration: none; display: inline-block;">
+                                    <div id="player1PhotoContainer" style="width: 160px; height: 160px; border-radius: 16px; background: rgba(59, 130, 246, 0.2); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 64px; color: #60a5fa; overflow: hidden; position: relative; border: 3px solid rgba(59, 130, 246, 0.4); cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);" 
+                                         onmouseover="this.style.borderColor='rgba(59, 130, 246, 0.8)'; this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 20px rgba(59, 130, 246, 0.4)'" 
+                                         onmouseout="this.style.borderColor='rgba(59, 130, 246, 0.4)'; this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.2)'">
+                                        <img id="player1Photo" src="" alt="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                        <div id="player1PhotoPlaceholder" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 700; font-size: 64px;">👤</div>
+                                    </div>
+                                </a>
+                                <div style="font-size: 20px; font-weight: 700; color: #60a5fa; margin-bottom: 12px;" id="player1Name">Select Player</div>
+                                <a id="player1ProfileLink" href="#" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; padding: 8px 20px; border-radius: 8px; font-size: 13px; cursor: pointer; margin-top: 8px; text-decoration: none; display: inline-block; transition: all 0.2s;" 
+                                   onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'; this.style.borderColor='rgba(59, 130, 246, 0.6)'" 
+                                   onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'; this.style.borderColor='rgba(59, 130, 246, 0.4)'">Player profile</a>
+                            </div>
+                            <!-- Stats Comparison -->
+                            <div id="statsComparison" style="min-width: 300px;">
+                                <div style="font-size: 14px; color: #94a3b8; margin-bottom: 16px; text-align: center;">Select two players to compare</div>
+                            </div>
+                            <!-- Player 2 -->
+                            <div id="player2Comparison" style="text-align: center;">
+                                <a id="player2PhotoLink" href="#" style="text-decoration: none; display: inline-block;">
+                                    <div id="player2PhotoContainer" style="width: 160px; height: 160px; border-radius: 16px; background: rgba(239, 68, 68, 0.2); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 64px; color: #f87171; overflow: hidden; position: relative; border: 3px solid rgba(239, 68, 68, 0.4); cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);" 
+                                         onmouseover="this.style.borderColor='rgba(239, 68, 68, 0.8)'; this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 20px rgba(239, 68, 68, 0.4)'" 
+                                         onmouseout="this.style.borderColor='rgba(239, 68, 68, 0.4)'; this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(239, 68, 68, 0.2)'">
+                                        <img id="player2Photo" src="" alt="" style="width: 100%; height: 100%; object-fit: cover; display: none;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                        <div id="player2PhotoPlaceholder" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 700; font-size: 64px;">👤</div>
+                                    </div>
+                                </a>
+                                <div style="font-size: 20px; font-weight: 700; color: #f87171; margin-bottom: 12px;" id="player2Name">Select Player</div>
+                                <a id="player2ProfileLink" href="#" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; padding: 8px 20px; border-radius: 8px; font-size: 13px; cursor: pointer; margin-top: 8px; text-decoration: none; display: inline-block; transition: all 0.2s;" 
+                                   onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'; this.style.borderColor='rgba(239, 68, 68, 0.6)'" 
+                                   onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'; this.style.borderColor='rgba(239, 68, 68, 0.4)'">Player profile</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Matches -->
+                <div style="margin-bottom: 32px;">
+                    <h3 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #e2e8f0;">Matches, past 6 months</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <!-- Team 1 Recent -->
+                        <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 20px;">
+                            <div style="font-size: 14px; font-weight: 600; color: #60a5fa; margin-bottom: 12px;">${team1?.name || 'Team 1'}</div>
+                            ${team1Recent.length > 0 ? team1Recent.map(m => {
+                                const opp = tournamentManagerV2.allTeams.find(t => String(t.id) === String(m.opponentId) || (m.opponent && String(t.name) === String(m.opponent)));
+                                const scoreStr = m.score || (m.team1Score!==undefined && m.team2Score!==undefined ? `${m.team1Score}:${m.team2Score}` : (m.final || ''));
+                                const dateStr = (m.date || m.matchDate || m.playedAt) ? new Date(m.date || m.matchDate || m.playedAt).toLocaleDateString('ru-RU') : '';
+                                const won = (m.winnerId && String(m.winnerId) === String(team1Id)) || m.result === 'Win' || (scoreStr && /^\d+:\d+$/.test(scoreStr) && parseInt(scoreStr.split(':')[0]) > parseInt(scoreStr.split(':')[1]));
+                                return `
+                                    <div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);">
+                                        <img src="${opp?.logoUrl || 'https://via.placeholder.com/36'}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.04);">
+                                        <div style="flex:1;">
+                                            <div style="font-weight:700;color:${won? '#10b981':'#ef4444'};">vs ${opp?.name || m.opponent || 'Unknown'} ${scoreStr ? `<span style=\"font-weight:600;\">${scoreStr}</span>` : ''}</div>
+                                            <div style="font-size:12px;color:#94a3b8;margin-top:4px;">${dateStr}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') : '<div style="color: #94a3b8; font-size: 13px; font-style: italic;">Нет данных</div>'}
+                        </div>
+                        <!-- Team 2 Recent -->
+                        <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 20px;">
+                            <div style="font-size: 14px; font-weight: 600; color: #f87171; margin-bottom: 12px;">${team2?.name || 'Team 2'}</div>
+                            ${team2Recent.length > 0 ? team2Recent.map(m => {
+                                const opp = tournamentManagerV2.allTeams.find(t => String(t.id) === String(m.opponentId) || (m.opponent && String(t.name) === String(m.opponent)));
+                                const scoreStr = m.score || (m.team1Score!==undefined && m.team2Score!==undefined ? `${m.team1Score}:${m.team2Score}` : (m.final || ''));
+                                const dateStr = (m.date || m.matchDate || m.playedAt) ? new Date(m.date || m.matchDate || m.playedAt).toLocaleDateString('ru-RU') : '';
+                                const won = (m.winnerId && String(m.winnerId) === String(team2Id)) || m.result === 'Win' || (scoreStr && /^\d+:\d+$/.test(scoreStr) && parseInt(scoreStr.split(':')[0]) > parseInt(scoreStr.split(':')[1]));
+                                return `
+                                    <div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);">
+                                        <img src="${opp?.logoUrl || 'https://via.placeholder.com/36'}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.04);">
+                                        <div style="flex:1;">
+                                            <div style="font-weight:700;color:${won? '#10b981':'#ef4444'};">vs ${opp?.name || m.opponent || 'Unknown'} ${scoreStr ? `<span style=\"font-weight:600;\">${scoreStr}</span>` : ''}</div>
+                                            <div style="font-size:12px;color:#94a3b8;margin-top:4px;">${dateStr}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') : '<div style="color: #94a3b8; font-size: 13px; font-style: italic;">Нет данных</div>'}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Head to Head -->
+                <div>
+                    <h3 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #e2e8f0;">Head to head</h3>
+                    <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 20px;">
+                        ${(() => {
+                            try {
+                                const getTimeForMatch = (m) => {
+                                    const d = m?.date || m?.matchDate || m?.playedAt || m?.when || m?.timestamp || m?.time || null;
+                                    const t = d ? new Date(d).getTime() : 0;
+                                    return isNaN(t) ? 0 : t;
+                                };
+                                const historySorted = (history || []).slice().sort((a,b) => getTimeForMatch(b) - getTimeForMatch(a));
+                                if (!historySorted || historySorted.length === 0) return '<div style="color: #94a3b8; font-size: 13px; font-style: italic; padding:12px;">Нет личных встреч</div>';
+                                const summaryHtml = `
+                                    <div style="margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.4); border-radius: 8px;">
+                                        <div style="font-size: 14px; color: #94a3b8; margin-bottom: 8px;">Summary</div>
+                                        <div style="font-size: 18px; font-weight: 700; color: #e2e8f0;">
+                                            ${team1?.name || 'Team 1'}: ${historySorted.filter(h => h.winnerId === team1Id).length} wins,
+                                            ${team2?.name || 'Team 2'}: ${historySorted.filter(h => h.winnerId === team2Id).length} wins
+                                        </div>
+                                    </div>
+                                `;
+                                const items = historySorted.map(m => {
+                                    const scoreStr = m.score || (m.team1Score!==undefined && m.team2Score!==undefined ? `${m.team1Score}:${m.team2Score}` : (m.final || ''));
+                                    const dateStr = (m.date || m.matchDate || m.playedAt) ? new Date(m.date || m.matchDate || m.playedAt).toLocaleDateString('ru-RU') : '';
+                                    const aName = m.teamAName || m.team1Name || team1?.name || '';
+                                    const bName = m.teamBName || m.team2Name || team2?.name || '';
+                                    const aLogo = (()=>{
+                                        const t = tournamentManagerV2.allTeams.find(tt => String(tt.name) === String(aName) || String(tt.id) === String(m.teamAId) || String(tt.id) === String(m.team1Id));
+                                        return t?.logoUrl || 'https://via.placeholder.com/36';
+                                    })();
+                                    const bLogo = (()=>{
+                                        const t = tournamentManagerV2.allTeams.find(tt => String(tt.name) === String(bName) || String(tt.id) === String(m.teamBId) || String(tt.id) === String(m.team2Id));
+                                        return t?.logoUrl || 'https://via.placeholder.com/36';
+                                    })();
+                                    const winnerId = m.winnerId || m.winner || null;
+                                    const aWon = winnerId && String(winnerId) === String(m.teamAId || m.team1Id);
+                                    const bWon = winnerId && String(winnerId) === String(m.teamBId || m.team2Id);
+                                    const neutral = !aWon && !bWon;
+                                    return `
+                                        <div style="display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid rgba(255,255,255,0.02);">
+                                            <img src="${aLogo}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.04);">
+                                            <div style="flex:1;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                                                <div style="min-width:0;">
+                                                    <div style="font-weight:700;color:${aWon? '#10b981': (neutral? '#e2e8f0':'#ef4444')};">${aName}</div>
+                                                    <div style="font-size:12px;color:#94a3b8;margin-top:4px;">${dateStr}</div>
+                                                </div>
+                                                <div style="text-align:center;min-width:120px;font-weight:800;color:#e2e8f0;">${scoreStr || '—'}</div>
+                                                <div style="min-width:0;text-align:right;">
+                                                    <div style="font-weight:700;color:${bWon? '#10b981': (neutral? '#e2e8f0':'#ef4444')};">${bName}</div>
+                                                    <div style="font-size:12px;color:#94a3b8;margin-top:4px;">&nbsp;</div>
+                                                </div>
+                                            </div>
+                                            <img src="${bLogo}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.04);">
+                                        </div>
+                                    `;
+                                }).join('');
+                                return summaryHtml + items;
+                            } catch (err) {
+                                console.error('Error rendering head-to-head list:', err);
+                                return '<div style="color:#f87171;padding:12px;">Ошибка при отображении личных встреч</div>';
+                            }
+                        })()}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('matchContent').innerHTML = content;
+            document.getElementById('matchModal').style.display = 'flex';
+
+            // Initialize player comparison
+            selectedPlayers = { player1: null, player2: null };
+            currentPreviewTeams = { team1: team1, team2: team2 };
+
+            document.getElementById('playMatchBtn').onclick = () => {
+                const payload = {
+                    tournamentId: currentTournament.id,
+                    matchId: matchId,
+                    team1Id: team1?.id || team1Id,
+                    team2Id: team2?.id || team2Id,
+                    team1Name: team1?.name || '',
+                    team2Name: team2?.name || ''
+                };
+                localStorage.setItem('pending_match', JSON.stringify(payload));
+                window.location.href = 'index.html';
+            };
+        }
+
+        // Player comparison functions
+        let selectedPlayers = { player1: null, player2: null };
+        let currentPreviewTeams = { team1: null, team2: null };
+
+        async function selectPlayerForComparison(playerName, teamNum) {
+            if (!playerName) return;
+            
+            // Toggle selection - deselect if clicking on already selected player
+            if (selectedPlayers.player1 && selectedPlayers.player1.name === playerName && selectedPlayers.player1.team === teamNum) {
+                selectedPlayers.player1 = null;
+            } else if (selectedPlayers.player2 && selectedPlayers.player2.name === playerName && selectedPlayers.player2.team === teamNum) {
+                selectedPlayers.player2 = null;
+            } else if (!selectedPlayers.player1) {
+                // First player selection
+                selectedPlayers.player1 = { name: playerName, team: teamNum };
+            } else if (!selectedPlayers.player2) {
+                // Second player selection - check if from different team
+                if (selectedPlayers.player1.team === teamNum) {
+                    // Same team - replace first player
+                    selectedPlayers.player1 = { name: playerName, team: teamNum };
+                    selectedPlayers.player2 = null;
+                } else {
+                    // Different team - select as second player
+                    selectedPlayers.player2 = { name: playerName, team: teamNum };
+                }
+            } else {
+                // Both players selected - replace based on team
+                if (selectedPlayers.player1.team === teamNum) {
+                    // Same team as player1 - replace player1
+                    selectedPlayers.player1 = { name: playerName, team: teamNum };
+                } else if (selectedPlayers.player2.team === teamNum) {
+                    // Same team as player2 - replace player2
+                    selectedPlayers.player2 = { name: playerName, team: teamNum };
+                } else {
+                    // Different team from both - replace player1
+                    selectedPlayers.player1 = { name: playerName, team: teamNum };
+                }
+            }
+
+            // Update UI with visual feedback
+            updatePlayerSelectionUI();
+            
+            // If both players selected from different teams, load and compare stats
+            if (selectedPlayers.player1 && selectedPlayers.player2 && 
+                selectedPlayers.player1.team !== selectedPlayers.player2.team) {
+                await comparePlayers(selectedPlayers.player1.name, selectedPlayers.player2.name);
+            } else if (selectedPlayers.player1 && selectedPlayers.player2) {
+                // Same team selected - show warning
+                const statsDiv = document.getElementById('statsComparison');
+                statsDiv.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">⚠️ Выберите игроков из разных команд</div>
+                        <div style="font-size: 13px; color: #94a3b8;">Для сравнения нужно выбрать одного игрока из каждой команды</div>
+                    </div>
+                `;
+            }
+        }
+
+        function updatePlayerPhotosAndNames(stats1, stats2, player1Name, player2Name) {
+            // Update player 1 photo and name
+            const player1Photo = document.getElementById('player1Photo');
+            const player1PhotoPlaceholder = document.getElementById('player1PhotoPlaceholder');
+            const player1NameEl = document.getElementById('player1Name');
+            const player1ProfileLink = document.getElementById('player1ProfileLink');
+            const player1PhotoLink = document.getElementById('player1PhotoLink');
+            
+            if (stats1 && player1Name) {
+                player1NameEl.textContent = player1Name;
+                const profileUrl = `player-profile.html?player=${encodeURIComponent(player1Name)}`;
+                player1ProfileLink.href = profileUrl;
+                player1PhotoLink.href = profileUrl;
+                
+                // Set photo
+                const photoUrl = stats1.photo_url || stats1.photoUrl || '';
+                if (photoUrl && photoUrl.trim() !== '') {
+                    player1Photo.src = photoUrl;
+                    player1Photo.style.display = 'block';
+                    player1PhotoPlaceholder.style.display = 'none';
+                } else {
+                    player1Photo.style.display = 'none';
+                    player1PhotoPlaceholder.style.display = 'flex';
+                    player1PhotoPlaceholder.textContent = player1Name.charAt(0).toUpperCase();
+                    player1PhotoPlaceholder.style.fontSize = '64px';
+                }
+            }
+            
+            // Update player 2 photo and name
+            const player2Photo = document.getElementById('player2Photo');
+            const player2PhotoPlaceholder = document.getElementById('player2PhotoPlaceholder');
+            const player2NameEl = document.getElementById('player2Name');
+            const player2ProfileLink = document.getElementById('player2ProfileLink');
+            const player2PhotoLink = document.getElementById('player2PhotoLink');
+            
+            if (stats2 && player2Name) {
+                player2NameEl.textContent = player2Name;
+                const profileUrl = `player-profile.html?player=${encodeURIComponent(player2Name)}`;
+                player2ProfileLink.href = profileUrl;
+                player2PhotoLink.href = profileUrl;
+                
+                // Set photo
+                const photoUrl = stats2.photo_url || stats2.photoUrl || '';
+                if (photoUrl && photoUrl.trim() !== '') {
+                    player2Photo.src = photoUrl;
+                    player2Photo.style.display = 'block';
+                    player2PhotoPlaceholder.style.display = 'none';
+                } else {
+                    player2Photo.style.display = 'none';
+                    player2PhotoPlaceholder.style.display = 'flex';
+                    player2PhotoPlaceholder.textContent = player2Name.charAt(0).toUpperCase();
+                    player2PhotoPlaceholder.style.fontSize = '64px';
+                }
+            }
+        }
+
+        function updatePlayerSelectionUI() {
+            const section = document.getElementById('playerComparisonSection');
+            
+            if (selectedPlayers.player1 || selectedPlayers.player2) {
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+                return;
+            }
+
+            // Remove selected class from all players
+            document.querySelectorAll('.player-selectable').forEach(el => {
+                el.classList.remove('selected');
+                el.style.border = '2px solid transparent';
+                el.style.background = 'rgba(30, 41, 59, 0.4)';
+            });
+
+            // Highlight selected players
+            if (selectedPlayers.player1) {
+                const player1El = document.querySelector(`[data-player="${selectedPlayers.player1.name}"][data-team="${selectedPlayers.player1.team}"]`);
+                if (player1El) {
+                    player1El.classList.add('selected');
+                    player1El.style.border = '2px solid #60a5fa';
+                    player1El.style.background = 'rgba(59, 130, 246, 0.2)';
+                }
+                document.getElementById('player1Name').textContent = selectedPlayers.player1.name;
+                document.getElementById('player1ProfileLink').textContent = 'Player profile';
+            } else {
+                document.getElementById('player1Name').textContent = 'Select Player';
+                document.getElementById('player1ProfileLink').textContent = 'Select';
+            }
+
+            // Update player 2
+            if (selectedPlayers.player2) {
+                const player2El = document.querySelector(`[data-player="${selectedPlayers.player2.name}"][data-team="${selectedPlayers.player2.team}"]`);
+                if (player2El) {
+                    player2El.classList.add('selected');
+                    player2El.style.border = '2px solid #f87171';
+                    player2El.style.background = 'rgba(239, 68, 68, 0.2)';
+                }
+                document.getElementById('player2Name').textContent = selectedPlayers.player2.name;
+                document.getElementById('player2ProfileLink').textContent = 'Player profile';
+            } else {
+                document.getElementById('player2Name').textContent = 'Select Player';
+                document.getElementById('player2ProfileLink').textContent = 'Select';
+            }
+        }
+
+        // Aggregate player stats from local match history
+        function aggregatePlayerStatsLocal(playerName) {
+            let totalMatches = 0;
+            let wins = 0;
+            let ratingSum = 0;
+            let ratingCount = 0;
+            let bestRating = 0;
+            let totalKills = 0;
+            let totalDeaths = 0;
+            let totalAdr = 0;
+            let adrCount = 0;
+
+            // Search through all teams in tournament manager
+            const allTeams = tournamentManagerV2.allTeams || [];
+            
+            allTeams.forEach(team => {
+                if (!Array.isArray(team.history)) return;
+                
+                team.history.forEach(match => {
+                    if (!Array.isArray(match.playerStats)) return;
+                    
+                    const playerStat = match.playerStats.find(p => 
+                        (p.name || '').toLowerCase().trim() === playerName.toLowerCase().trim()
+                    );
+
+                    if (playerStat) {
+                        totalMatches++;
+                        const rating = typeof playerStat.rating2 === 'number' ? playerStat.rating2 : 
+                                     (typeof playerStat.rating === 'number' ? playerStat.rating : 1.0);
+                        ratingSum += rating;
+                        ratingCount++;
+                        bestRating = Math.max(bestRating, rating);
+
+                        const kills = playerStat.kills || 0;
+                        const deaths = playerStat.deaths || 0;
+                        const adr = playerStat.adr || 0;
+                        
+                        totalKills += kills;
+                        totalDeaths += deaths;
+                        const adrValue = parseFloat(adr);
+                        if (!isNaN(adrValue) && adrValue > 0) {
+                            totalAdr += adrValue;
+                            adrCount++;
+                        }
+
+                        if (match.result === 'Win') wins++;
+                    }
+                });
+            });
+
+            const avgRating = ratingCount > 0 ? ratingSum / ratingCount : 0;
+            const winRate = totalMatches > 0 ? (wins / totalMatches) * 100 : 0;
+            const kdRatio = totalDeaths > 0 ? totalKills / totalDeaths : (totalKills > 0 ? totalKills : 0);
+            const avgAdr = adrCount > 0 ? totalAdr / adrCount : 0;
+
+            return {
+                player_name: playerName,
+                total_matches: totalMatches,
+                wins: wins,
+                avg_rating: avgRating,
+                best_rating: bestRating,
+                win_rate: winRate,
+                total_kills: totalKills,
+                total_deaths: totalDeaths,
+                kd_ratio: kdRatio,
+                avg_adr: avgAdr
+            };
+        }
+
+        async function comparePlayers(player1Name, player2Name) {
+            const statsDiv = document.getElementById('statsComparison');
+            statsDiv.innerHTML = '<div style="text-align: center; color: #94a3b8;">Загрузка статистики...</div>';
+
+            try {
+                console.log('Comparing players:', player1Name, player2Name);
+                
+                // Ensure allTeams is loaded for player-profile.js functions
+                // player-profile.js uses global allTeams variable
+                if (typeof loadAllTeams === 'function') {
+                    await loadAllTeams();
+                }
+                // Make sure allTeams is available globally for aggregatePlayerStats
+                if (typeof allTeams === 'undefined' || !allTeams || allTeams.length === 0) {
+                    // Use teams from tournament manager
+                    allTeams = tournamentManagerV2.allTeams || [];
+                    window.allTeams = allTeams;
+                }
+                
+                // Use the same fetchPlayerStats function as in player-profile.js
+                // This ensures we get the same data that's shown in the profile
+                let stats1 = null, stats2 = null;
+                
+                if (typeof fetchPlayerStats === 'function') {
+                    // Use function from player-profile.js - it uses the same logic as profile page
+                    console.log('Using fetchPlayerStats from player-profile.js');
+                    try {
+                        stats1 = await fetchPlayerStats(player1Name);
+                        stats2 = await fetchPlayerStats(player2Name);
+                        console.log('Stats loaded via fetchPlayerStats:', { stats1, stats2 });
+                    } catch (err) {
+                        console.error('Error in fetchPlayerStats:', err);
+                        // Fallback to local aggregation
+                        stats1 = aggregatePlayerStatsLocal(player1Name);
+                        stats2 = aggregatePlayerStatsLocal(player2Name);
+                    }
+                } else {
+                    console.log('fetchPlayerStats not available, using fallback');
+                    // Fallback: get local aggregated stats
+                    stats1 = aggregatePlayerStatsLocal(player1Name);
+                    stats2 = aggregatePlayerStatsLocal(player2Name);
+                    
+                    // Try to fetch from database
+                    if (window.csApi && typeof window.csApi.fetchPlayerStats === 'function') {
+                        try {
+                            const dbStats1 = await window.csApi.fetchPlayerStats(player1Name);
+                            const dbStats2 = await window.csApi.fetchPlayerStats(player2Name);
+                            
+                            if (dbStats1) {
+                                stats1 = { ...stats1, ...dbStats1 };
+                            }
+                            if (dbStats2) {
+                                stats2 = { ...stats2, ...dbStats2 };
+                            }
+                        } catch (dbError) {
+                            console.warn('Error fetching from DB:', dbError);
+                        }
+                    }
+                }
+                
+                console.log('Final stats 1:', stats1);
+                console.log('Final stats 2:', stats2);
+                
+                // Update player photos and names
+                updatePlayerPhotosAndNames(stats1, stats2, player1Name, player2Name);
+
+                // Ensure we have valid stats objects
+                if (!stats1 || Object.keys(stats1).length === 0) {
+                    console.warn('No stats found for player 1:', player1Name);
+                    stats1 = { player_name: player1Name };
+                }
+                if (!stats2 || Object.keys(stats2).length === 0) {
+                    console.warn('No stats found for player 2:', player2Name);
+                    stats2 = { player_name: player2Name };
+                }
+
+                // Calculate derived stats
+                const calculateKPR = (stats) => {
+                    if (stats.kills_per_round) return stats.kills_per_round;
+                    if (stats.total_kills && stats.total_matches) {
+                        // Approximate: assume ~24 rounds per match
+                        const totalRounds = stats.total_matches * 24;
+                        return totalRounds > 0 ? stats.total_kills / totalRounds : null;
+                    }
+                    return null;
+                };
+
+                const calculateDPR = (stats) => {
+                    if (stats.deaths_per_round) return stats.deaths_per_round;
+                    if (stats.total_deaths && stats.total_matches) {
+                        const totalRounds = stats.total_matches * 24;
+                        return totalRounds > 0 ? stats.total_deaths / totalRounds : null;
+                    }
+                    return null;
+                };
+
+                // Build comparison stats
+                const statsToCompare = [
+                    { 
+                        label: 'RATING', 
+                        getValue: (s) => {
+                            const rating = s.avg_rating || s.rating || null;
+                            if (rating === null || rating === undefined) return null;
+                            // Normalize: if rating > 10, assume it's in 1000 scale, convert to 1.x scale
+                            return rating > 10 ? rating / 1000 : rating;
+                        }, 
+                        format: (v) => v !== null && v !== undefined ? Number(v).toFixed(2) : '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'KILLS PER ROUND', 
+                        getValue: (s) => calculateKPR(s), 
+                        format: (v) => v ? v.toFixed(2) : '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'DEATHS PER ROUND', 
+                        getValue: (s) => calculateDPR(s), 
+                        format: (v) => v ? v.toFixed(2) : '—', 
+                        higher: false 
+                    },
+                    { 
+                        label: 'KD RATIO', 
+                        getValue: (s) => s.kd_ratio || (s.total_kills && s.total_deaths ? s.total_kills / s.total_deaths : null), 
+                        format: (v) => v ? v.toFixed(2) : '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'AVERAGE DAMAGE PER ROUND', 
+                        getValue: (s) => s.avg_adr || null, 
+                        format: (v) => v ? Math.round(v) : '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'WIN RATE', 
+                        getValue: (s) => {
+                            if (s.win_rate !== undefined && s.win_rate !== null) {
+                                // If win_rate is already a percentage (0-100), return as is
+                                // If it's a decimal (0-1), convert to percentage
+                                return s.win_rate > 1 ? s.win_rate : s.win_rate * 100;
+                            }
+                            if (s.wins && s.total_matches && s.total_matches > 0) {
+                                return (s.wins / s.total_matches) * 100;
+                            }
+                            return null;
+                        }, 
+                        format: (v) => v !== null && v !== undefined ? `${Number(v).toFixed(1)}%` : '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'TOTAL MATCHES', 
+                        getValue: (s) => s.total_matches || null, 
+                        format: (v) => v || '—', 
+                        higher: true 
+                    },
+                    { 
+                        label: 'BEST RATING', 
+                        getValue: (s) => {
+                            const rating = s.best_rating || null;
+                            if (rating === null || rating === undefined) return null;
+                            // Normalize: if rating > 10, assume it's in 1000 scale, convert to 1.x scale
+                            return rating > 10 ? rating / 1000 : rating;
+                        }, 
+                        format: (v) => v !== null && v !== undefined ? Number(v).toFixed(2) : '—', 
+                        higher: true 
+                    }
+                ];
+
+                let statsHtml = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+                
+                statsToCompare.forEach(stat => {
+                    const val1 = stat.getValue(stats1);
+                    const val2 = stat.getValue(stats2);
+                    const formatted1 = stat.format(val1);
+                    const formatted2 = stat.format(val2);
+                    
+                    // Determine which is better
+                    let better1 = false, better2 = false;
+                    if (val1 !== null && val2 !== null) {
+                        if (stat.higher) {
+                            better1 = val1 > val2;
+                            better2 = val2 > val1;
+                        } else {
+                            better1 = val1 < val2;
+                            better2 = val2 < val1;
+                        }
+                    }
+
+                    statsHtml += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(30, 41, 59, 0.4); border-radius: 6px;">
+                            <div style="font-size: 14px; font-weight: ${better1 ? '700' : '500'}; color: ${better1 ? '#60a5fa' : '#94a3b8'}; min-width: 100px; text-align: right;">
+                                ${formatted1}
+                            </div>
+                            <div style="font-size: 12px; color: #64748b; font-weight: 600; min-width: 150px; text-align: center;">
+                                ${stat.label}
+                            </div>
+                            <div style="font-size: 14px; font-weight: ${better2 ? '700' : '500'}; color: ${better2 ? '#f87171' : '#94a3b8'}; min-width: 100px; text-align: left;">
+                                ${formatted2}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                statsHtml += '</div>';
+                
+                // Check if we have any data
+                const hasData1 = stats1 && (stats1.total_matches > 0 || stats1.avg_rating || stats1.total_kills > 0);
+                const hasData2 = stats2 && (stats2.total_matches > 0 || stats2.avg_rating || stats2.total_kills > 0);
+                
+                if (!hasData1 && !hasData2) {
+                    statsHtml += '<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 14px; margin-top: 16px;">';
+                    statsHtml += 'Статистика не найдена. Игроки еще не играли матчей или данные отсутствуют в базе.';
+                    statsHtml += '</div>';
+                } else if (!hasData1) {
+                    statsHtml += '<div style="text-align: center; padding: 10px; color: #fbbf24; font-size: 12px; margin-top: 8px;">';
+                    statsHtml += `⚠️ Для ${player1Name} статистика не найдена`;
+                    statsHtml += '</div>';
+                } else if (!hasData2) {
+                    statsHtml += '<div style="text-align: center; padding: 10px; color: #fbbf24; font-size: 12px; margin-top: 8px;">';
+                    statsHtml += `⚠️ Для ${player2Name} статистика не найдена`;
+                    statsHtml += '</div>';
+                }
+                
+                statsDiv.innerHTML = statsHtml;
+
+            } catch (error) {
+                console.error('Error comparing players:', error);
+                console.error('Error details:', error.stack);
+                statsDiv.innerHTML = `
+                    <div style="text-align: center; color: #f87171; padding: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Ошибка загрузки статистики</div>
+                        <div style="font-size: 12px; color: #94a3b8;">${error.message || 'Неизвестная ошибка'}</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Проверьте консоль для подробностей</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Tab handlers
+        document.getElementById('bracketTab')?.addEventListener('click', () => {
+            document.getElementById('bracketView').style.display = 'block';
+            document.getElementById('statsView').style.display = 'none';
+        });
+
+        document.getElementById('statsTab')?.addEventListener('click', () => {
+            document.getElementById('bracketView').style.display = 'none';
+            document.getElementById('statsView').style.display = 'block';
+        });
+
+        document.getElementById('closeMatchBtn').addEventListener('click', () => {
+            document.getElementById('matchModal').style.display = 'none';
+        });
+
+        // Process match results coming back from main screen
+        function processPendingMatchResult() {
+            const resultStr = localStorage.getItem('last_played_match_result');
+            if (!resultStr) return;
+
+            try {
+                const result = JSON.parse(resultStr);
+                console.log('📊 Processing match result:', result);
+
+                if (!currentTournament) {
+                    console.log('⚠️ Tournament not loaded yet');
+                    return;
+                }
+
+                // Normalize result shape (support both {winnerId} and {winner:'team1'|'team2'})
+                const normalized = Object.assign({}, result);
+                if (!normalized.winner && normalized.winnerId) {
+                    if (normalized.team1Id && normalized.winnerId === normalized.team1Id) normalized.winner = 'team1';
+                    else if (normalized.team2Id && normalized.winnerId === normalized.team2Id) normalized.winner = 'team2';
+                    else normalized.winner = null;
+                }
+                // Some callers use team1Score/team2Score, others use scoreA/scoreB
+                if (normalized.team1Score === undefined && normalized.scoreA !== undefined) normalized.team1Score = normalized.scoreA;
+                if (normalized.team2Score === undefined && normalized.scoreB !== undefined) normalized.team2Score = normalized.scoreB;
+
+                // Apply result to tournament
+                tournamentManagerV2.applyMatchResultToTournament(currentTournament, normalized);
+
+                // Save updated tournament
+                tournamentManagerV2.saveTournaments();
+
+                // Reload tournament data and re-render
+                tournamentManagerV2.loadTournaments();
+                currentTournament = tournamentManagerV2.getTournament(currentTournament.id);
+
+                // Re-render bracket
+                renderBracket();
+
+                // Show notification
+                const winner = normalized.winner === 'team1' ? (result.team1Name || '') : (normalized.winner === 'team2' ? (result.team2Name || '') : (result.winnerId || ''));
+                console.log(`✅ Матч завершён! Победитель: ${winner}`);
+
+                // Clear result from storage
+                localStorage.removeItem('last_played_match_result');
+            } catch (e) {
+                console.error('Error processing match result:', e);
+            }
+        }
+
+        // Listen for storage changes from other tabs/windows
+        window.addEventListener('storage', (ev) => {
+            if (ev.key === 'last_played_match_result') {
+                processPendingMatchResult();
+            }
+        });
+
+        // Load on page load
+        loadTournament();
+    </script>
+</body>
+</html>
