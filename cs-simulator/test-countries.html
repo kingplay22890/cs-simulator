@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Countries Feature Test</title>
+</head>
+<body>
+    <h1>Countries Feature Test</h1>
+    <div id="test-results"></div>
+    
+    <script src="js/countries.js"></script>
+    <script>
+        const results = [];
+        
+        // Test 1: Check COUNTRIES_AND_REGIONS
+        try {
+            const regionCount = Object.keys(COUNTRIES_AND_REGIONS).length;
+            results.push(`✅ COUNTRIES_AND_REGIONS loaded: ${regionCount} regions`);
+        } catch (e) {
+            results.push(`❌ Error loading COUNTRIES_AND_REGIONS: ${e.message}`);
+        }
+        
+        // Test 2: Test getAllCountries
+        try {
+            const allCountries = getAllCountries();
+            results.push(`✅ getAllCountries() works: ${allCountries.length} countries total`);
+        } catch (e) {
+            results.push(`❌ Error in getAllCountries: ${e.message}`);
+        }
+        
+        // Test 3: Test getRegionByCountry
+        try {
+            const region = getRegionByCountry('Sweden');
+            if (region === 'Europe') {
+                results.push(`✅ getRegionByCountry('Sweden') = '${region}'`);
+            } else {
+                results.push(`❌ getRegionByCountry('Sweden') = '${region}' (expected 'Europe')`);
+            }
+        } catch (e) {
+            results.push(`❌ Error in getRegionByCountry: ${e.message}`);
+        }
+        
+        // Test 4: Test getFlagByCountry
+        try {
+            const flag = getFlagByCountry('Japan');
+            if (flag === '🇯🇵') {
+                results.push(`✅ getFlagByCountry('Japan') = '${flag}'`);
+            } else {
+                results.push(`❌ getFlagByCountry('Japan') = '${flag}' (expected '🇯🇵')`);
+            }
+        } catch (e) {
+            results.push(`❌ Error in getFlagByCountry: ${e.message}`);
+        }
+        
+        // Test 5: Test getFlagByRegion
+        try {
+            const flag = getFlagByRegion('Europe');
+            if (flag === '🇪🇺') {
+                results.push(`✅ getFlagByRegion('Europe') = '${flag}'`);
+            } else {
+                results.push(`❌ getFlagByRegion('Europe') = '${flag}' (expected '🇪🇺')`);
+            }
+        } catch (e) {
+            results.push(`❌ Error in getFlagByRegion: ${e.message}`);
+        }
+        
+        // Display results
+        const container = document.getElementById('test-results');
+        container.innerHTML = `<pre>${results.join('\n')}</pre>`;
+    </script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        pre {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+    </style>
+</body>
+</html>

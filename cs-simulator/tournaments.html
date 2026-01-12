@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление турнирами</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-200">
+  <div class="container mx-auto p-6">
+    <!-- Шапка с навигацией -->
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="text-4xl font-bold">🏆 Турниры</h1>
+      <div class="flex gap-3">
+        <a href="index.html" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition">← Назад</a>
+        <button id="createTournamentBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition">+ Создать турнир</button>
+      </div>
+    </div>
+
+    <!-- Список турниров -->
+    <div id="tournamentsContainer" class="grid gap-6">
+      <div class="bg-gray-800 rounded-lg p-8 text-center text-gray-400">
+        Загружаю турниры...
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно создания турнира -->
+  <div id="createTournamentModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-lg p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-gray-700">
+      <h2 class="text-2xl font-bold mb-6">Создать новый турнир</h2>
+      
+      <form id="createTournamentForm" class="space-y-4">
+        <!-- Название -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Название турнира *</label>
+          <input type="text" id="tournamentName" placeholder="Например: Grand Final 2025" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none" required>
+        </div>
+
+        <!-- Выбор команд -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Команды *</label>
+          <div id="teamsSelection" class="bg-gray-700 rounded-lg p-4 max-h-60 overflow-y-auto border border-gray-600">
+            <p class="text-gray-400">Загружаю команды...</p>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">Выбрано: <span id="selectedTeamsCount">0</span> команд</p>
+        </div>
+
+        <!-- Стадия группы -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Групповая стадия</label>
+          <select id="groupStageFormat" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+            <option value="none">Без групповой стадии</option>
+            <option value="swiss">Швейцарская система (до 3 побед/поражений)</option>
+            <option value="round-robin">Круговая система</option>
+            <option value="double">Double Elimination (групповая стадия)</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-2">При выборе системы турнир будет разделён на раунды перед плей-оффом</p>
+        </div>
+
+        <!-- Количество групп (для double elimination) -->
+        <div id="groupsCountContainer" class="hidden">
+          <label class="block text-sm text-gray-400 mb-2">Количество групп *</label>
+          <input type="number" id="groupsCount" min="1" max="8" value="2" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+          <p class="text-xs text-gray-500 mt-2">Команды будут разделены поровну между группами</p>
+        </div>
+
+        <!-- Количество раундов для группы (если выбрана групповая стадия) -->
+        <div id="roundsContainer" class="hidden">
+          <label class="block text-sm text-gray-400 mb-2">Количество раундов *</label>
+          <input type="number" id="groupRounds" min="1" max="10" value="3" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+        </div>
+
+        <!-- Количество команд в плей-офф -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Команд в плей-офф *</label>
+          <select id="playoffTeams" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+            <option value="4">4 команды</option>
+            <option value="8">8 команд</option>
+            <option value="16">16 команд</option>
+          </select>
+        </div>
+
+        <!-- Формат плей-офф -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Формат плей-офф *</label>
+          <select id="playoffFormat" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+            <option value="single">Single Elimination</option>
+            <option value="double">Double Elimination</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-2">Single Elimination: проигрыш = выбывание | Double Elimination: вторая попытка через нижнюю сетку</p>
+        </div>
+
+        <!-- Кнопки -->
+        <div class="flex gap-3 pt-4">
+          <button type="button" id="cancelCreateBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition">Отмена</button>
+          <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition">Создать турнир</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно просмотра турнира -->
+  <div id="viewTournamentModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+    <div class="bg-gray-800 rounded-lg p-8 max-w-6xl w-full mx-4 my-8 border border-gray-700">
+      <div class="flex items-center justify-between mb-6">
+        <h2 id="tournamentTitle" class="text-2xl font-bold"></h2>
+        <button id="closeTournamentViewBtn" class="text-gray-400 hover:text-white text-2xl">×</button>
+      </div>
+
+      <div class="flex gap-4 mb-6">
+        <button id="groupStageTab" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold">Групповая стадия</button>
+        <button id="playoffTab" class="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-semibold hover:bg-gray-600">Плей-офф</button>
+      </div>
+
+      <!-- Групповая стадия -->
+      <div id="groupStageContent" class="space-y-6">
+        <div id="groupsContainer"></div>
+      </div>
+
+      <!-- Плей-офф -->
+      <div id="playoffContent" class="hidden space-y-6">
+        <div id="bracketContainer" class="overflow-x-auto"></div>
+      </div>
+
+      <div class="flex gap-3 pt-6 border-t border-gray-700">
+        <button id="deleteTournamentBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">Удалить турнир</button>
+        <button id="closeTournamentBtn" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/tournament-manager-v2.js"></script>
+  <script src="js/tournaments-ui-v2.js"></script>
+</body>
+</html>
