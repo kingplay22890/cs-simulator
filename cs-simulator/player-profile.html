@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профиль игрока</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-slate-200">
+  <div class="container mx-auto p-6">
+    <!-- Шапка с ником и фото -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg">
+      <div class="flex items-center gap-6">
+        <div class="player-photo-wrapper">
+          <img id="playerPhoto" src="https://via.placeholder.com/128" alt="Фото" class="w-32 h-32 rounded-lg object-cover">
+          <div id="playerPhotoPlaceholder" class="w-32 h-32 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-3xl font-bold text-white" style="display:none;"></div>
+        </div>
+        <div class="flex-1">
+          <h1 id="playerName" class="text-4xl font-bold mb-2">Загружаю...</h1>
+          <div class="flex gap-6 text-lg">
+            <div>
+              <span class="text-gray-400">Команда:</span>
+              <a id="playerTeam" href="#" class="text-blue-400 hover:text-blue-300 ml-2">-</a>
+            </div>
+            <div>
+              <span class="text-gray-400">Матчей:</span>
+              <span id="playerMatches" class="text-green-400 ml-2">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Фильтры периода -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6 shadow-lg border border-gray-700/50">
+      <div class="flex items-center justify-between mb-4">
+        <label class="block text-sm font-medium text-gray-300">📅 Период статистики</label>
+      </div>
+      <div class="filter-button-group" id="periodFilterGroup">
+        <button class="filter-btn" data-value="all">Все матчи</button>
+        <button class="filter-btn" data-value="last10">10 матчей</button>
+        <button class="filter-btn" data-value="last3m">3 месяца</button>
+        <button class="filter-btn" data-value="last6m">6 месяцев</button>
+        <button class="filter-btn" data-value="last12m">12 месяцев</button>
+        <button class="filter-btn" data-value="year2025">2025</button>
+        <button class="filter-btn" data-value="year2026">2026</button>
+      </div>
+    </div>
+
+    <!-- Статистика в стиле HLTV -->
+    <div class="bg-gray-800 rounded-lg p-8 mb-6 shadow-lg border border-gray-700/50 relative overflow-hidden">
+      <!-- Декоративные фоновые элементы -->
+      <div class="absolute inset-0 opacity-5 pointer-events-none">
+        <div class="absolute left-0 top-0 w-64 h-64 bg-gradient-to-br from-blue-500 to-transparent blur-3xl"></div>
+        <div class="absolute right-0 bottom-0 w-64 h-64 bg-gradient-to-tl from-purple-500 to-transparent blur-3xl"></div>
+      </div>
+      
+      <div class="relative z-10">
+        <div class="flex items-center justify-between mb-6">
+          <span id="playerMatchesCount" class="text-gray-400 text-sm">0 maps</span>
+          <span class="text-gray-400 text-xs cursor-pointer hover:text-gray-300">Show player average</span>
+        </div>
+        
+        <!-- Основной блок статистики -->
+        <div class="player-stats-main-grid">
+          <!-- T Rating (слева) -->
+          <div class="player-stat-side">
+            <div class="player-stat-label">T RATING</div>
+            <div id="tRating" class="player-stat-value text-orange-400">0.00</div>
+          </div>
+          
+          <!-- Центральный рейтинг -->
+          <div class="player-stat-center">
+            <div class="rating-circle-wrapper">
+              <svg class="rating-circle" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                <path class="rating-circle-bg" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(148, 163, 184, 0.2)" stroke-width="12"/>
+                <path id="ratingCirclePath" class="rating-circle-fill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#60a5fa" stroke-width="12" stroke-linecap="round"/>
+              </svg>
+              <div class="rating-value-wrapper">
+                <div id="ratingLabel" class="rating-label">GOOD</div>
+                <div id="avgRating" class="rating-value">0.00</div>
+                <div class="rating-type">RATING 2.0</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- CT Rating (справа) -->
+          <div class="player-stat-side">
+            <div class="player-stat-label">CT RATING</div>
+            <div id="ctRating" class="player-stat-value text-blue-400">0.00</div>
+          </div>
+        </div>
+        
+        <!-- Дополнительная статистика -->
+        <div class="player-stats-details-grid mt-8">
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">ROUND SWING</div>
+            <div id="swingValue" class="player-stat-detail-value">0.00</div>
+            <div id="swingStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">KD</div>
+            <div id="kdValue" class="player-stat-detail-value">0.00</div>
+            <div id="kdStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">KAST</div>
+            <div id="kastValue" class="player-stat-detail-value">0%</div>
+            <div id="kastStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">WIN RATE</div>
+            <div id="winrateValue" class="player-stat-detail-value">0%</div>
+            <div id="winrateStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">ADR</div>
+            <div id="adrValue" class="player-stat-detail-value">0</div>
+            <div id="adrStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+          <div class="player-stat-detail">
+            <div class="player-stat-detail-label">KPR</div>
+            <div id="kprValue" class="player-stat-detail-value">0.00</div>
+            <div id="kprStatus" class="player-stat-detail-status">GOOD</div>
+          </div>
+        </div>
+        
+        <!-- Кнопка подробной статистики -->
+        <div class="mt-6 text-center">
+          <button id="detailedStatsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition">
+            📊 Подробная статистика
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно подробной статистики - улучшенный стиль -->
+    <div id="detailedStatsModal" class="hidden fixed top-0 left-0 right-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 backdrop-blur-md z-50 p-6 border-b-2 border-blue-500/30 shadow-2xl">
+      <div class="container mx-auto max-w-6xl">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Подробная статистика</h2>
+          <button onclick="closeDetailedStatsModal()" class="text-gray-400 hover:text-white text-3xl transition-transform hover:rotate-90 duration-300">✕</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-red-500/30 shadow-lg hover:shadow-red-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">Всего убийств</div>
+            <div id="detailedKills" class="text-4xl font-bold text-red-400 drop-shadow-lg">0</div>
+          </div>
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-gray-500/30 shadow-lg hover:shadow-gray-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">Всего смертей</div>
+            <div id="detailedDeaths" class="text-4xl font-bold text-gray-300 drop-shadow-lg">0</div>
+          </div>
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-cyan-500/30 shadow-lg hover:shadow-cyan-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">K/D Ratio</div>
+            <div id="detailedKD" class="text-4xl font-bold text-cyan-400 drop-shadow-lg">0.00</div>
+          </div>
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-green-500/30 shadow-lg hover:shadow-green-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">Максимальный рейтинг</div>
+            <div id="detailedBestRating" class="text-4xl font-bold text-green-400 drop-shadow-lg">0.00</div>
+          </div>
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-red-500/30 shadow-lg hover:shadow-red-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">Минимальный рейтинг</div>
+            <div id="detailedWorstRating" class="text-4xl font-bold text-red-400 drop-shadow-lg">0.00</div>
+          </div>
+          <div class="bg-gradient-to-br from-gray-800/80 to-gray-700/60 rounded-xl p-5 border border-orange-500/30 shadow-lg hover:shadow-orange-500/20 transition-all hover:scale-105">
+            <div class="text-gray-400 text-xs uppercase tracking-wider mb-2">Количество MVP</div>
+            <div id="detailedMVP" class="text-4xl font-bold text-orange-400 drop-shadow-lg">0</div>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <button onclick="closeDetailedStatsModal()" class="bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 text-white font-bold py-3 px-8 rounded-lg transition-all shadow-lg hover:shadow-xl">
+            Закрыть
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Дополнительная информация (скрытые элементы для совместимости) -->
+    <div style="display: none;">
+      <div id="playerWins">0</div>
+      <div id="playerWinRate">0%</div>
+      <div id="playerBestRating">0.00</div>
+      <div id="playerMvp">0</div>
+      <div id="totalKills">0</div>
+      <div id="totalDeaths">0</div>
+      <div id="kdRatio">0.00</div>
+      <div id="avgAdr">0.00</div>
+    </div>
+
+    <!-- Награды -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">Награды</h2>
+        <button id="editAwardsBtn" class="text-blue-400 hover:text-blue-300 text-xl" title="Редактировать награды">✏️</button>
+      </div>
+      <div id="playerAwardsList" class="flex flex-wrap gap-6"></div>
+    </div>
+
+    <!-- Матчи -->
+    <div class="bg-gray-800 rounded-lg p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">История матчей</h2>
+        <button id="toggleAllMatchesBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm">
+          Показать все матчи
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-700">
+              <th class="text-left px-4 py-2 text-gray-400">Дата</th>
+              <th class="text-left px-4 py-2 text-gray-400">Команда</th>
+              <th class="text-left px-4 py-2 text-gray-400">Соперник</th>
+              <th class="text-left px-4 py-2 text-gray-400">Результат</th>
+              <th class="text-left px-4 py-2 text-gray-400">Рейтинг</th>
+              <th class="text-left px-4 py-2 text-gray-400">K/D</th>
+              <th class="text-left px-4 py-2 text-gray-400">ADR</th>
+              <th class="text-left px-4 py-2 text-gray-400">MVP</th>
+            </tr>
+          </thead>
+          <tbody id="matchesBody">
+            <tr><td colspan="8" class="text-center py-4 text-gray-500">Нет матчей</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- График рейтинга -->
+    <div class="bg-gray-800 rounded-lg p-6 mt-6">
+      <h2 class="text-2xl font-bold mb-4">График рейтинга</h2>
+      <canvas id="ratingChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Модальное окно редактирования наград -->
+  <div id="editAwardsModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-700">
+      <div class="sticky top-0 bg-gray-900 border-b border-gray-700 p-6 flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-white">Редактирование наград</h2>
+        <button onclick="closeEditAwardsModal()" class="text-gray-400 hover:text-white text-2xl">✕</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between mb-3">
+          <label class="block text-sm font-semibold text-gray-300">Награды</label>
+          <button onclick="addAwardRow()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition">
+            + Добавить награду
+          </button>
+        </div>
+        <div id="awardsEditList" class="space-y-3">
+          <!-- Строки наград будут добавлены сюда -->
+        </div>
+        <div class="flex gap-3 pt-4 border-t border-gray-700">
+          <button onclick="savePlayerAwards()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+            ✓ Сохранить
+          </button>
+          <button onclick="closeEditAwardsModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition">
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/player-awards-store.js"></script>
+  <script src="js/player-profile.js"></script>
+</body>
+</html>
